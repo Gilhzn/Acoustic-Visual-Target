@@ -70,6 +70,7 @@ interface HudExtras {
   transport: string;
   azimuthMode: string;
   detCount: number;
+  camInfo: string;
 }
 
 /** Translate raw fused state into clear, human-readable HUD values. */
@@ -88,6 +89,7 @@ function buildHudView(ts: TrackState, fusion: FusionCore, x: HudExtras): HudView
       transport: x.transport,
       azimuthMode: x.azimuthMode,
       detCount: x.detCount,
+      camInfo: x.camInfo,
     };
   }
   const p = ts.position;
@@ -112,6 +114,7 @@ function buildHudView(ts: TrackState, fusion: FusionCore, x: HudExtras): HudView
     transport: x.transport,
     azimuthMode: x.azimuthMode,
     detCount: x.detCount,
+    camInfo: x.camInfo,
   };
 }
 
@@ -173,6 +176,8 @@ async function run(hud: Hud): Promise<void> {
 
   let lastConfidence = 0;
   let lastDetCount = 0;
+  let camW = camera.width;
+  let camH = camera.height;
   let inferenceMs = 0;
   let fps = 60;
   let lastFrameTime = now();
@@ -203,6 +208,9 @@ async function run(hud: Hud): Promise<void> {
         const frame = camera.latestFrame();
         if (frame) {
           const t = now();
+          camW = frame.width;
+          camH = frame.height;
+          render.setCameraSize(camW, camH);
           if (council.state.vision.restrictToEllipse && fusion.initialized && !fusion.visuallyTracked) {
             const e = fusion.searchEllipse();
             if (e?.valid) {
@@ -276,6 +284,7 @@ async function run(hud: Hud): Promise<void> {
         transport: sel.audioTransport,
         azimuthMode: acoustic.azimuthAvailable ? "dual-mic" : "vision-only",
         detCount: lastDetCount,
+        camInfo: `${camW}×${camH}`,
       }),
     );
   });

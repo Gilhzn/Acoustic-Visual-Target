@@ -15,6 +15,8 @@ export interface HudView {
   azimuthMode: string;
   /** Detections in the last processed frame (live diagnostic). */
   detCount: number;
+  /** Camera resolution string, e.g. "1280×720" (live diagnostic). */
+  camInfo: string;
 }
 
 /** Half horizontal field-of-view (deg) the direction gauge spans each side. */
@@ -118,7 +120,7 @@ export class Hud {
     this.conf.textContent = tracked ? `${pct}%` : "—";
     this.lock.textContent = v.lock ? `Lock: ${v.lock}` : "—";
 
-    this.tech.textContent = `${v.backend} · ${v.azimuthMode} · ${Math.round(v.fps)} fps · det ${v.detCount}`;
+    this.tech.textContent = `${v.backend} · ${v.azimuthMode} · cam ${v.camInfo} · det ${v.detCount} · ${Math.round(v.fps)} fps`;
   }
 
   showError(message: string): void {

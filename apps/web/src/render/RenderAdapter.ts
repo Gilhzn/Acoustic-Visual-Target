@@ -49,7 +49,7 @@ export class RenderAdapter {
   /** Redraw the 2D detection/ellipse overlay; call once per render frame. */
   tick(): void {
     this.overlay.clear();
-    this.overlay.drawDetections(this.boxes, this.camW, this.camH);
+    this.overlay.drawDetections(this.boxes, this.camW, this.camH, performance.now() / 1000);
     if (this.ellipse) this.overlay.drawSearchEllipse(this.ellipse, this.camW, this.camH);
   }
 }

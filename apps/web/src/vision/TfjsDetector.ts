@@ -9,6 +9,8 @@ export interface TfjsDetectorOpts {
   classes?: string[];
   maxBoxes?: number;
   minScore?: number;
+  /** coco-ssd base: mobilenet_v2 is more accurate, lite_mobilenet_v2 fastest. */
+  base?: "mobilenet_v1" | "mobilenet_v2" | "lite_mobilenet_v2";
 }
 
 type PixelSource = HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | ImageData;
@@ -32,6 +34,7 @@ export class TfjsDetector implements Detector {
       classes: opts.classes ?? ["person", "cat", "dog"],
       maxBoxes: opts.maxBoxes ?? 5,
       minScore: opts.minScore ?? 0.5,
+      base: opts.base ?? "mobilenet_v2",
     };
   }
 
@@ -42,7 +45,7 @@ export class TfjsDetector implements Detector {
 
   async warmup(): Promise<void> {
     await this.selectBackend(this.opts.backend);
-    this.model = await cocoSsd.load({ base: "lite_mobilenet_v2" });
+    this.model = await cocoSsd.load({ base: this.opts.base });
     // Pre-compile shaders via the real pixel path: a filled canvas is a valid
     // upload source (a context-less or float32 tensor source would be rejected).
     const warm = document.createElement("canvas");

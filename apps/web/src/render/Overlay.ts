@@ -1,10 +1,12 @@
 import type { Detection } from "@avt/contracts";
 import type { SearchEllipse } from "@avt/fusion";
+import { coverFit, thermalColor, rgba } from "./visuals.js";
 
 /**
- * Full-screen 2D monitoring overlay: stylized detection boxes with class +
- * confidence tags, and the EKF search ellipse during re-acquisition. Maps
- * camera-frame pixels to the screen with object-fit: cover. Device-only.
+ * Full-screen 2D monitoring overlay. Paints a thermal-camera-style heat blob on
+ * each detected living thing (unmistakable indication), plus a crisp bounding
+ * box, class + confidence label, and the EKF search ellipse during
+ * re-acquisition. Maps camera-frame pixels to screen with object-fit: cover.
  */
 export class Overlay {
   private readonly canvas: HTMLCanvasElement;
@@ -29,52 +31,98 @@ export class Overlay {
     this.ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
   }
 
-  private fit(srcW: number, srcH: number): { s: number; ox: number; oy: number } {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    const s = Math.max(w / srcW, h / srcH); // cover
-    return { s, ox: (w - srcW * s) / 2, oy: (h - srcH * s) / 2 };
-  }
-
-  drawDetections(boxes: Detection[], srcW: number, srcH: number): void {
-    const { s, ox, oy } = this.fit(srcW, srcH);
+  drawDetections(boxes: Detection[], srcW: number, srcH: number, tSec: number): void {
+    const { s, ox, oy } = coverFit(srcW, srcH, window.innerWidth, window.innerHeight);
     const ctx = this.ctx;
-    ctx.lineWidth = 2;
-    ctx.font = "13px ui-monospace, monospace";
+    const pulse = 0.5 + 0.5 * Math.sin(tSec * 4);
+
     for (const b of boxes) {
       const [x0, y0, x1, y1] = b.bbox;
       const x = ox + x0 * s;
       const y = oy + y0 * s;
-      const bw = (x1 - x0) * s;
-      const bh = (y1 - y0) * s;
-      ctx.strokeStyle = "#1de9b6";
-      ctx.shadowColor = "#1de9b6";
-      ctx.shadowBlur = 12;
-      ctx.strokeRect(x, y, bw, bh);
-      ctx.shadowBlur = 0;
-      const tag = `${b.classLabel} ${(b.score * 100).toFixed(0)}%`;
-      const tw = ctx.measureText(tag).width + 10;
-      ctx.fillStyle = "#1de9b6";
-      ctx.fillRect(x, y - 18, tw, 18);
-      ctx.fillStyle = "#04121a";
-      ctx.fillText(tag, x + 5, y - 5);
+      const w = (x1 - x0) * s;
+      const h = (y1 - y0) * s;
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const rad = Math.max(w, h) * 0.62;
+
+      // Thermal heat blob (additive glow), hottest at the centroid.
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createRadialGradient(cx, cy, Math.min(w, h) * 0.05, cx, cy, rad);
+      g.addColorStop(0.0, rgba(thermalColor(0.0), 0.85));
+      g.addColorStop(0.25, rgba(thermalColor(0.28), 0.6));
+      g.addColorStop(0.55, rgba(thermalColor(0.55), 0.34));
+      g.addColorStop(0.8, rgba(thermalColor(0.8), 0.16));
+      g.addColorStop(1.0, rgba(thermalColor(1.0), 0.0));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rad, rad * 0.92, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Bright targeting box with animated corner accents.
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.85;
+      ctx.strokeRect(x, y, w, h);
+      ctx.globalAlpha = 1;
+      this.corners(x, y, w, h, 16 + 4 * pulse);
+
+      // Label chip.
+      const tag = `${b.classLabel.toUpperCase()}  ${Math.round(b.score * 100)}%`;
+      ctx.font = "600 14px ui-sans-serif, system-ui, sans-serif";
+      const tw = ctx.measureText(tag).width + 16;
+      const ty = y - 26 < 0 ? y + 4 : y - 26;
+      ctx.fillStyle = "rgba(255,150,60,0.92)";
+      this.roundRect(x, ty, tw, 22, 6);
+      ctx.fill();
+      ctx.fillStyle = "#1a0a00";
+      ctx.fillText(tag, x + 8, ty + 15);
     }
   }
 
   drawSearchEllipse(e: SearchEllipse, srcW: number, srcH: number): void {
     if (!e.valid) return;
-    const { s, ox, oy } = this.fit(srcW, srcH);
+    const { s, ox, oy } = coverFit(srcW, srcH, window.innerWidth, window.innerHeight);
     const ctx = this.ctx;
     ctx.save();
     ctx.translate(ox + e.centerU * s, oy + e.centerV * s);
     ctx.rotate(e.angleRad);
-    ctx.strokeStyle = "#ffcf4d";
+    ctx.strokeStyle = "#ffce5c";
     ctx.setLineDash([6, 5]);
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.ellipse(0, 0, Math.max(e.semiMajor * s, 4), Math.max(e.semiMinor * s, 4), 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, Math.max(e.semiMajor * s, 6), Math.max(e.semiMinor * s, 6), 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
     ctx.setLineDash([]);
+  }
+
+  private corners(x: number, y: number, w: number, h: number, len: number): void {
+    const ctx = this.ctx;
+    ctx.strokeStyle = "#25e8c0";
+    ctx.lineWidth = 3;
+    const c: Array<[number, number, number, number]> = [
+      [x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1],
+    ];
+    for (const [px, py, sx, sy] of c) {
+      ctx.beginPath();
+      ctx.moveTo(px, py + sy * len);
+      ctx.lineTo(px, py);
+      ctx.lineTo(px + sx * len, py);
+      ctx.stroke();
+    }
+  }
+
+  private roundRect(x: number, y: number, w: number, h: number, r: number): void {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
   }
 }

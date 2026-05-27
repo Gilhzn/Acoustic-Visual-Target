@@ -44,10 +44,12 @@ export class TfjsDetector implements Detector {
   async warmup(): Promise<void> {
     await this.selectBackend(this.opts.backend);
     this.model = await cocoSsd.load({ base: "lite_mobilenet_v2" });
-    // Pre-compile shaders with a dummy zero-tensor forward pass.
-    const dummy = tf.zeros([64, 64, 3]) as tf.Tensor3D;
-    await this.model.detect(dummy);
-    dummy.dispose();
+    // Pre-compile shaders via the real pixel path: a blank canvas becomes an
+    // int32 image_tensor (a raw tf.zeros tensor would be float32 and rejected).
+    const warm = document.createElement("canvas");
+    warm.width = 64;
+    warm.height = 64;
+    await this.model.detect(warm);
   }
 
   async detect(frame: FrameLike): Promise<Detection[]> {

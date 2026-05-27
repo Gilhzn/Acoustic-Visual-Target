@@ -1,0 +1,29 @@
+{
+  "name": "@avt/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@avt/contracts": "workspace:*",
+    "@avt/core-units": "workspace:*",
+    "@avt/dsp": "workspace:*",
+    "@avt/fusion": "workspace:*",
+    "@avt/lab": "workspace:*",
+    "@tensorflow-models/coco-ssd": "^2.2.3",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-webgpu": "^4.22.0",
+    "gsap": "^3.12.5",
+    "three": "^0.171.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.171.0",
+    "@types/webxr": "^0.5.20",
+    "happy-dom": "^15.11.0"
+  }
+}

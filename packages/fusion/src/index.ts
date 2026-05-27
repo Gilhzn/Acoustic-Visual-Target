@@ -6,3 +6,4 @@ export * from "./measVisual.js";
 export * from "./gating.js";
 export * from "./searchEllipse.js";
 export * from "./ekf.js";
+export * from "./fusionCore.js";

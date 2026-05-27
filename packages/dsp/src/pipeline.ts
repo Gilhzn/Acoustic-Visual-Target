@@ -196,6 +196,20 @@ export class AcousticPipeline implements RangeProcessor {
     return beatToRange(this.basebandRate / 2, this.spec);
   }
 
+  /** Max-pool the latest mic-0 range-profile magnitude into `out` (for display). */
+  copyMagnitudeProfile(out: Float32Array): void {
+    const n = this.mag0.length;
+    const m = out.length;
+    if (m === 0 || n === 0) return;
+    for (let i = 0; i < m; i++) {
+      const a = Math.floor((i * n) / m);
+      const b = Math.max(a + 1, Math.floor(((i + 1) * n) / m));
+      let mx = 0;
+      for (let k = a; k < b && k < n; k++) if (this.mag0[k] > mx) mx = this.mag0[k];
+      out[i] = mx;
+    }
+  }
+
   private conditionMic(
     rx: Float32Array,
     bp: Float32Array,

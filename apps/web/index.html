@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Acoustic-Visual Target Tracking AR</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #05060a; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+      #app { position: fixed; inset: 0; }
+      canvas { display: block; }
+      #ar-canvas { position: absolute; inset: 0; z-index: 1; }
+      #overlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+      #overlay-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+      #waterfall { position: absolute; right: 12px; top: 12px; width: 240px; height: 140px; border: 1px solid #1de9b633; border-radius: 8px; background: #02040799; box-shadow: 0 0 24px #1de9b622; }
+      #hud { position: absolute; left: 12px; top: 12px; color: #1de9b6; font-size: 12px; line-height: 1.5; text-shadow: 0 0 6px #1de9b6aa; white-space: pre; }
+      #start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; background: radial-gradient(circle at 50% 40%, #0a1420, #05060a); }
+      #start button { pointer-events: auto; padding: 16px 28px; font: inherit; font-size: 16px; color: #05060a; background: #1de9b6; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 0 30px #1de9b677; }
+      #start p { color: #6ad; margin-top: 16px; max-width: 420px; text-align: center; font-size: 12px; }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="ar-canvas"></canvas>
+      <div id="overlay">
+        <canvas id="overlay-canvas"></canvas>
+        <pre id="hud">initializing…</pre>
+        <canvas id="waterfall" width="240" height="140"></canvas>
+      </div>
+      <div id="start">
+        <div>
+          <button id="start-btn">Start Tracking</button>
+          <p>
+            Emits a low-level near-ultrasonic sonar sweep and uses the camera to
+            track a target in AR. Requires microphone + camera permission. Best
+            on a phone in landscape; headphones not required.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

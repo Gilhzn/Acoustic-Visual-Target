@@ -30,8 +30,9 @@ jobs:
       - name: Build web app for Pages
         run: pnpm --filter @avt/web build
         env:
-          # Must match the repository name for a project Pages site.
-          VITE_BASE: /acoustic-visual-target/
+          # Derived from the canonical repo name so the base always matches the
+          # project Pages path (avoids case-mismatch 404s on assets).
+          VITE_BASE: /${{ github.event.repository.name }}/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

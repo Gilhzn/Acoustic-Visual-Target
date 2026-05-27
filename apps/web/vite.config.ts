@@ -22,6 +22,9 @@ type Middleware = (
 ) => void;
 
 export default defineConfig({
+  // Set to the repo subpath for GitHub Pages (e.g. "/acoustic-visual-target/")
+  // via the VITE_BASE env var; defaults to root for local dev and other hosts.
+  base: process.env.VITE_BASE ?? "/",
   plugins: [tsconfigPaths(), crossOriginIsolation],
   worker: {
     format: "es",

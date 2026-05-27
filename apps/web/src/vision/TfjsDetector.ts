@@ -1,5 +1,4 @@
 import * as tf from "@tensorflow/tfjs";
-import "@tensorflow/tfjs-backend-webgpu";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import type { Detection, Detector, FrameLike } from "@avt/contracts";
 import type { InferenceBackend } from "./capability.js";
@@ -29,7 +28,7 @@ export class TfjsDetector implements Detector {
 
   constructor(opts: TfjsDetectorOpts = {}) {
     this.opts = {
-      backend: opts.backend ?? "webgpu",
+      backend: opts.backend ?? "webgl",
       classes: opts.classes ?? ["person", "cat", "dog"],
       maxBoxes: opts.maxBoxes ?? 5,
       minScore: opts.minScore ?? 0.5,

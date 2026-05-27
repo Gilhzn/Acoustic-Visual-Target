@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "baseUrl": ".",
+    "paths": {
+      "@avt/core-units": ["packages/core-units/src/index.ts"],
+      "@avt/contracts": ["packages/contracts/src/index.ts"],
+      "@avt/dsp": ["packages/dsp/src/index.ts"],
+      "@avt/fusion": ["packages/fusion/src/index.ts"],
+      "@avt/lab": ["packages/lab/src/index.ts"]
+    }
+  }
+}

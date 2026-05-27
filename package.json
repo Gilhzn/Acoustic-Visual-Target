@@ -1,0 +1,29 @@
+{
+  "name": "acoustic-visual-target",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dual-modality acoustic-visual target tracking with WebGL/GSAP AR visualization",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r --no-bail typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lab": "tsx packages/lab/src/cli.ts",
+    "build": "pnpm --filter @avt/web build",
+    "verify": "pnpm typecheck && pnpm test && pnpm build",
+    "lint:boundaries": "depcruise --config .dependency-cruiser.cjs packages apps"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "dependency-cruiser": "^16.4.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.0.0",
+    "@vitest/coverage-v8": "^3.0.0"
+  }
+}

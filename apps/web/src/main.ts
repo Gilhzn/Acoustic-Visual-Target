@@ -77,7 +77,7 @@ async function run(): Promise<void> {
   await camera.start();
   const K = makeIntrinsics(camera.width, camera.height);
 
-  const detector = new TfjsDetector({ backend: sel.inferenceBackend });
+  const detector = new TfjsDetector({ backend: "webgl" });
   hud.textContent = "warming up detector…";
   await detector.warmup();
 

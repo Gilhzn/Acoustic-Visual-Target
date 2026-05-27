@@ -44,11 +44,16 @@ export class TfjsDetector implements Detector {
   async warmup(): Promise<void> {
     await this.selectBackend(this.opts.backend);
     this.model = await cocoSsd.load({ base: "lite_mobilenet_v2" });
-    // Pre-compile shaders via the real pixel path: a blank canvas becomes an
-    // int32 image_tensor (a raw tf.zeros tensor would be float32 and rejected).
+    // Pre-compile shaders via the real pixel path: a filled canvas is a valid
+    // upload source (a context-less or float32 tensor source would be rejected).
     const warm = document.createElement("canvas");
     warm.width = 64;
     warm.height = 64;
+    const g = warm.getContext("2d");
+    if (g) {
+      g.fillStyle = "#000";
+      g.fillRect(0, 0, 64, 64);
+    }
     await this.model.detect(warm);
   }
 

@@ -69,6 +69,7 @@ interface HudExtras {
   backend: string;
   transport: string;
   azimuthMode: string;
+  detCount: number;
 }
 
 /** Translate raw fused state into clear, human-readable HUD values. */
@@ -86,6 +87,7 @@ function buildHudView(ts: TrackState, fusion: FusionCore, x: HudExtras): HudView
       backend: x.backend,
       transport: x.transport,
       azimuthMode: x.azimuthMode,
+      detCount: x.detCount,
     };
   }
   const p = ts.position;
@@ -109,6 +111,7 @@ function buildHudView(ts: TrackState, fusion: FusionCore, x: HudExtras): HudView
     backend: x.backend,
     transport: x.transport,
     azimuthMode: x.azimuthMode,
+    detCount: x.detCount,
   };
 }
 
@@ -129,7 +132,7 @@ async function run(hud: Hud): Promise<void> {
   hud.setSensors(true, false);
   const K = makeIntrinsics(camera.width, camera.height);
 
-  const detector = new TfjsDetector({ backend: "webgl" });
+  const detector = new TfjsDetector({ backend: "webgl", minScore: 0.4 });
   hud.setStatusText("Loading detector…");
   await detector.warmup();
 
@@ -153,7 +156,13 @@ async function run(hud: Hud): Promise<void> {
       usingXR = false;
     }
   }
-  if (!usingXR && camera.element) scene.setVideoBackground(camera.element);
+  if (!usingXR && camera.element) {
+    // Show the live camera as a real DOM background (reliable; guarantees
+    // frames flow to the detector). The transparent AR canvas sits on top.
+    const vid = camera.element;
+    vid.id = "cam-bg";
+    document.getElementById("app")?.prepend(vid);
+  }
 
   // --- Fusion + council ---
   const fusion = new FusionCore({ intrinsics: K, ekf: { sigmaA: 1.2 } });
@@ -163,6 +172,7 @@ async function run(hud: Hud): Promise<void> {
   const now = (): number => (performance.now() - t0) / 1000;
 
   let lastConfidence = 0;
+  let lastDetCount = 0;
   let inferenceMs = 0;
   let fps = 60;
   let lastFrameTime = now();
@@ -185,44 +195,50 @@ async function run(hud: Hud): Promise<void> {
   }
   hud.setSensors(true, sonarActive);
 
-  // --- Detection loop (decoupled from render) ---
+  // --- Detection loop (decoupled from render; resilient to per-frame errors) ---
   let running = true;
   (async () => {
     while (running) {
-      const frame = camera.latestFrame();
-      if (frame) {
-        const t = now();
-        if (council.state.vision.restrictToEllipse && fusion.initialized && !fusion.visuallyTracked) {
-          const e = fusion.searchEllipse();
-          if (e?.valid) {
-            const half = Math.max(e.semiMajor, 60) + 40;
-            detector.setRoi([
-              Math.max(0, e.centerU - half),
-              Math.max(0, e.centerV - half),
-              Math.min(camera.width, 2 * half),
-              Math.min(camera.height, 2 * half),
-            ]);
+      try {
+        const frame = camera.latestFrame();
+        if (frame) {
+          const t = now();
+          if (council.state.vision.restrictToEllipse && fusion.initialized && !fusion.visuallyTracked) {
+            const e = fusion.searchEllipse();
+            if (e?.valid) {
+              const half = Math.max(e.semiMajor, 60) + 40;
+              detector.setRoi([
+                Math.max(0, e.centerU - half),
+                Math.max(0, e.centerV - half),
+                Math.min(camera.width, 2 * half),
+                Math.min(camera.height, 2 * half),
+              ]);
+            }
+          } else {
+            detector.setRoi(null);
           }
-        } else {
-          detector.setRoi(null);
+          const t1 = performance.now();
+          const dets = await detector.detect(frame);
+          inferenceMs = performance.now() - t1;
+          lastDetCount = dets.length;
+          render.onDetections(dets);
+          const best = bestDetection(dets);
+          if (best) {
+            lastConfidence = best.score;
+            const vm = detectionToVisual(best, K, t);
+            if (!fusion.initialized) fusion.initFromVisual(vm);
+            else fusion.onVisual(vm, t);
+          } else if (fusion.initialized) {
+            fusion.onVisual(null, t);
+          }
         }
-        const t1 = performance.now();
-        const dets = await detector.detect(frame);
-        inferenceMs = performance.now() - t1;
-        render.onDetections(dets);
-        const best = bestDetection(dets);
-        if (best) {
-          lastConfidence = best.score;
-          const vm = detectionToVisual(best, K, t);
-          if (!fusion.initialized) fusion.initFromVisual(vm);
-          else fusion.onVisual(vm, t);
-        } else if (fusion.initialized) {
-          fusion.onVisual(null, t);
-        }
+      } catch (e) {
+        // Never let one bad frame kill the loop; surface it for diagnosis.
+        console.error("detection step failed:", e);
       }
       await sleep(1000 / VISUAL_RATE_HZ);
     }
-  })().catch((e) => console.error(e));
+  })();
 
   // --- Council loop ---
   const battery = await getBatteryFraction();
@@ -259,6 +275,7 @@ async function run(hud: Hud): Promise<void> {
         backend: detector.activeBackend,
         transport: sel.audioTransport,
         azimuthMode: acoustic.azimuthAvailable ? "dual-mic" : "vision-only",
+        detCount: lastDetCount,
       }),
     );
   });

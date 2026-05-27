@@ -13,6 +13,8 @@ export interface HudView {
   backend: string;
   transport: string;
   azimuthMode: string;
+  /** Detections in the last processed frame (live diagnostic). */
+  detCount: number;
 }
 
 /** Half horizontal field-of-view (deg) the direction gauge spans each side. */
@@ -116,7 +118,7 @@ export class Hud {
     this.conf.textContent = tracked ? `${pct}%` : "—";
     this.lock.textContent = v.lock ? `Lock: ${v.lock}` : "—";
 
-    this.tech.textContent = `${v.backend} · ${v.azimuthMode} · ${v.transport} · ${Math.round(v.fps)} fps`;
+    this.tech.textContent = `${v.backend} · ${v.azimuthMode} · ${Math.round(v.fps)} fps · det ${v.detCount}`;
   }
 
   showError(message: string): void {

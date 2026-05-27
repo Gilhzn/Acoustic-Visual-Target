@@ -2,41 +2,265 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Acoustic-Visual Target Tracking AR</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#060a10" />
+    <title>AV-Track · Acoustic-Visual Target Tracking</title>
     <style>
-      :root { color-scheme: dark; }
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; overflow: hidden; background: #05060a; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+      :root {
+        color-scheme: dark;
+        --accent: #25e8c0;
+        --accent-2: #19b89a;
+        --amber: #ffce5c;
+        --blue: #56b6ff;
+        --red: #ff5d6c;
+        --bg: #060a10;
+        --text: #eaf2f0;
+        --text-2: #93a7b2;
+        --text-3: #5a6b76;
+        --panel: rgba(11, 18, 26, 0.66);
+        --hair: rgba(255, 255, 255, 0.09);
+        --shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+        --r-lg: 20px;
+        --r-md: 14px;
+        --r-sm: 10px;
+        --safe-t: env(safe-area-inset-top, 0px);
+        --safe-b: env(safe-area-inset-bottom, 0px);
+        --safe-l: env(safe-area-inset-left, 0px);
+        --safe-r: env(safe-area-inset-right, 0px);
+        --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        --mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, monospace;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font); -webkit-user-select: none; user-select: none; }
       #app { position: fixed; inset: 0; }
       canvas { display: block; }
       #ar-canvas { position: absolute; inset: 0; z-index: 1; }
       #overlay { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
       #overlay-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-      #waterfall { position: absolute; right: 12px; top: 12px; width: 240px; height: 140px; border: 1px solid #1de9b633; border-radius: 8px; background: #02040799; box-shadow: 0 0 24px #1de9b622; }
-      #hud { position: absolute; left: 12px; top: 12px; color: #1de9b6; font-size: 12px; line-height: 1.5; text-shadow: 0 0 6px #1de9b6aa; white-space: pre; }
-      #start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; background: radial-gradient(circle at 50% 40%, #0a1420, #05060a); }
-      #start button { pointer-events: auto; padding: 16px 28px; font: inherit; font-size: 16px; color: #05060a; background: #1de9b6; border: none; border-radius: 10px; cursor: pointer; box-shadow: 0 0 30px #1de9b677; }
-      #start p { color: #6ad; margin-top: 16px; max-width: 420px; text-align: center; font-size: 12px; }
+
+      .panel { background: var(--panel); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2); border: 1px solid var(--hair); box-shadow: var(--shadow); }
+
+      /* ============ Aiming reticle ============ */
+      #reticle { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; transform: translate(-50%, -50%); opacity: 0.5; transition: opacity 0.3s, transform 0.3s; }
+      #reticle::before, #reticle::after { content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border-radius: 50%; }
+      #reticle::before { width: 100%; height: 100%; border: 1.5px solid currentColor; }
+      #reticle::after { width: 6px; height: 6px; background: currentColor; }
+      .state-searching #reticle, .state-init #reticle { color: var(--amber); animation: pulse 1.6s ease-in-out infinite; }
+      .state-tracking #reticle { color: var(--accent); opacity: 0; }
+      .state-sonar #reticle { color: var(--blue); }
+      .state-lost #reticle { color: var(--red); }
+      @keyframes pulse { 0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.35; } 50% { transform: translate(-50%, -50%) scale(1.12); opacity: 0.7; } }
+
+      /* ============ Top bar ============ */
+      #topbar {
+        position: absolute; top: calc(var(--safe-t) + 12px); left: calc(var(--safe-l) + 12px);
+        right: calc(var(--safe-r) + 12px); display: flex; align-items: center; gap: 10px; justify-content: space-between;
+      }
+      .brand { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 15px; letter-spacing: 0.01em; color: var(--text); padding: 8px 12px; border-radius: 999px; }
+      .brand .logo { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--accent), var(--accent-2)); box-shadow: 0 0 14px var(--accent); }
+      .brand span.t { opacity: 0.92; }
+      #status-pill { display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--text); }
+      #status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 10px currentColor; color: var(--amber); animation: dot 1.8s ease-in-out infinite; }
+      @keyframes dot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+      .state-tracking #status-dot { background: var(--accent); color: var(--accent); animation: none; }
+      .state-sonar #status-dot { background: var(--blue); color: var(--blue); }
+      .state-lost #status-dot { background: var(--red); color: var(--red); }
+      #sensors { display: flex; gap: 7px; }
+      .sensor { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 7px 11px; border-radius: 999px; color: var(--text-3); }
+      .sensor i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+      .sensor.on { color: var(--accent); }
+      .sensor .lbl { color: var(--text-2); }
+      .sensor.on .lbl { color: var(--text); }
+
+      /* ============ Sonar panel ============ */
+      #sonar-box { position: absolute; top: calc(var(--safe-t) + 64px); right: calc(var(--safe-r) + 12px); width: 184px; border-radius: var(--r-md); padding: 9px 9px 7px; }
+      #sonar-box .cap { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--accent); opacity: 0.85; margin-bottom: 6px; }
+      #waterfall { width: 100%; height: 100px; border-radius: var(--r-sm); display: block; }
+
+      /* ============ Data dock ============ */
+      #dock {
+        position: absolute; left: calc(var(--safe-l) + 12px); right: calc(var(--safe-r) + 12px);
+        bottom: calc(var(--safe-b) + 12px); border-radius: var(--r-lg); padding: 16px 18px;
+        animation: dockIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      @keyframes dockIn { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+      .dock-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+      .target-chip { font-size: 15px; font-weight: 700; color: var(--accent); display: inline-flex; align-items: center; gap: 8px; }
+      .target-chip::before { content: ""; width: 8px; height: 8px; border-radius: 2px; border: 2px solid var(--accent); }
+      .hint { font-size: 12px; color: var(--text-3); }
+
+      .metrics { display: grid; grid-template-columns: 1.2fr 1fr 0.8fr; gap: 16px; align-items: end; }
+      .metric { min-width: 0; }
+      .m-label { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-3); margin-bottom: 6px; }
+      .m-value { font-size: 38px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+      .m-value .unit { font-size: 16px; font-weight: 600; color: var(--text-2); margin-left: 4px; }
+      .m-sub { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; margin-top: 7px; }
+      .m-chip { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.03em; padding: 3px 9px; border-radius: 999px; opacity: 0; transition: opacity 0.2s; }
+      .m-chip.show { opacity: 1; }
+      .m-chip.approaching { color: #04211a; background: var(--accent); }
+      .m-chip.receding { color: #2a0d12; background: var(--amber); }
+
+      /* Direction gauge */
+      .gauge { position: relative; height: 30px; display: flex; align-items: center; }
+      .gauge-track { position: absolute; left: 0; right: 0; height: 6px; border-radius: 999px; background: linear-gradient(90deg, rgba(86,182,255,0.25), rgba(255,255,255,0.12), rgba(37,232,192,0.25)); }
+      .gauge-center { position: absolute; left: 50%; top: 50%; width: 2px; height: 16px; background: rgba(255,255,255,0.4); transform: translate(-50%, -50%); }
+      .gauge-dot { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 14px var(--accent); transform: translate(-50%, -50%); transition: left 0.15s ease, opacity 0.2s; opacity: 0; border: 2px solid #06120f; }
+
+      /* Confidence ring */
+      .ring { --p: 0; position: relative; width: 60px; height: 60px; border-radius: 50%; background: conic-gradient(var(--accent) calc(var(--p) * 1%), rgba(255,255,255,0.1) 0); display: grid; place-items: center; margin: 0 auto; }
+      .ring::before { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: #0a141c; }
+      .ring span { position: relative; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+      .confidence .m-sub { text-align: center; }
+
+      #tech { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hair); font-size: 11px; color: var(--text-3); font-family: var(--mono); letter-spacing: 0.02em; }
+
+      /* ============ Legend ============ */
+      #legend { position: absolute; left: calc(var(--safe-l) + 14px); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 8px; font-size: 11.5px; color: #c7d6dd; text-shadow: 0 1px 3px #000; opacity: 0.9; }
+      #legend span { display: flex; align-items: center; gap: 8px; }
+      .sw { width: 16px; height: 16px; flex: none; }
+      .sw.box { border: 2px solid var(--accent); border-radius: 3px; }
+      .sw.ring2 { border: 2px dashed var(--amber); border-radius: 50%; }
+      .sw.char { background: radial-gradient(circle at 40% 32%, var(--accent), var(--accent-2)); border-radius: 50%; box-shadow: 0 0 8px var(--accent); }
+
+      /* ============ Error banner ============ */
+      #error-banner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(88vw, 440px); border-radius: var(--r-md); padding: 20px 22px; color: #ffd9dd; background: rgba(32, 9, 13, 0.92); border: 1px solid var(--red); box-shadow: 0 0 44px rgba(255,93,108,0.25); pointer-events: auto; }
+      #error-banner strong { display: block; color: var(--red); font-size: 15px; margin-bottom: 9px; }
+      #error-text { font-family: var(--mono); font-size: 12px; line-height: 1.55; color: #ffb3bb; word-break: break-word; }
+
+      /* ============ Start screen ============ */
+      #start { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; padding: 28px; background: radial-gradient(120% 90% at 50% 12%, #0d1a26 0%, #070c13 55%, #05080d 100%); overflow: hidden; }
+      #start::before { content: ""; position: absolute; width: 520px; height: 520px; top: -180px; left: 50%; transform: translateX(-50%); background: radial-gradient(circle, rgba(37,232,192,0.18), transparent 60%); filter: blur(20px); }
+      #start .card { position: relative; max-width: 460px; text-align: center; }
+      #start .brand { justify-content: center; font-size: 18px; margin-bottom: 6px; padding: 0; }
+      #start .tag { color: var(--accent); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 18px; font-weight: 600; }
+      #start h1 { font-size: clamp(26px, 6vw, 38px); font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 12px; background: linear-gradient(180deg, #fff, #b9cdd4); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      #start p.lead { color: var(--text-2); font-size: 15px; line-height: 1.6; margin-bottom: 26px; }
+      #start button { pointer-events: auto; padding: 16px 38px; font: inherit; font-size: 17px; font-weight: 700; color: #04140f; background: linear-gradient(180deg, var(--accent), var(--accent-2)); border: none; border-radius: 14px; cursor: pointer; box-shadow: 0 8px 30px rgba(37,232,192,0.4); transition: transform 0.15s, box-shadow 0.15s; }
+      #start button:hover { transform: translateY(-2px); box-shadow: 0 12px 38px rgba(37,232,192,0.5); }
+      #start button:active { transform: translateY(0); }
+      #start .steps { display: grid; gap: 10px; max-width: 380px; margin: 28px auto 0; text-align: left; }
+      #start .step { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: var(--r-sm); background: rgba(255,255,255,0.04); border: 1px solid var(--hair); color: var(--text-2); font-size: 13.5px; }
+      #start .step b { color: var(--text); font-weight: 600; }
+      #start .step .n { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #04140f; background: var(--accent); }
+      #start .foot { margin-top: 22px; font-size: 11.5px; color: var(--text-3); line-height: 1.5; }
+
       .hidden { display: none !important; }
+
+      /* ============ Desktop ============ */
+      @media (min-width: 860px) {
+        #dock { left: calc(var(--safe-l) + 20px); right: auto; bottom: calc(var(--safe-b) + 20px); width: 420px; padding: 20px 22px; }
+        #sonar-box { width: 240px; top: calc(var(--safe-t) + 70px); }
+        #waterfall { height: 130px; }
+        .m-value { font-size: 44px; }
+        #legend { left: auto; right: calc(var(--safe-r) + 20px); top: auto; bottom: calc(var(--safe-b) + 20px); transform: none; }
+        .brand { background: var(--panel); border: 1px solid var(--hair); backdrop-filter: blur(14px); box-shadow: var(--shadow); }
+        #status-pill { position: absolute; left: 50%; transform: translateX(-50%); }
+      }
+
+      /* Larger phones / tablets portrait */
+      @media (min-width: 520px) and (max-width: 859px) {
+        .m-value { font-size: 42px; }
+      }
+
+      /* Landscape phone: keep the dock compact */
+      @media (max-height: 480px) and (orientation: landscape) {
+        #dock { padding: 11px 14px; left: calc(var(--safe-l) + 10px); right: calc(var(--safe-r) + 10px); }
+        .dock-head { margin-bottom: 9px; }
+        .m-value { font-size: 30px; }
+        .ring { width: 48px; height: 48px; }
+        #tech { margin-top: 9px; padding-top: 9px; }
+        #legend { display: none; }
+      }
+
+      /* Compact phones: trim the top bar so nothing overflows */
+      @media (max-width: 519px) {
+        .brand .t { display: none; }
+        .sensor .lbl { display: none; }
+        .sensor { padding: 7px; }
+        #status-pill { font-size: 13px; padding: 8px 13px; }
+        #dock { padding: 14px 15px; }
+        .metrics { gap: 12px; }
+        #legend { font-size: 11px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #reticle, #status-dot, #dock { animation: none !important; }
+        .gauge-dot { transition: none; }
+      }
     </style>
   </head>
   <body>
     <div id="app">
       <canvas id="ar-canvas"></canvas>
-      <div id="overlay">
+      <div id="overlay" class="state-init">
         <canvas id="overlay-canvas"></canvas>
-        <pre id="hud">initializing…</pre>
-        <canvas id="waterfall" width="240" height="140"></canvas>
+
+        <div id="reticle"></div>
+
+        <header id="topbar">
+          <div class="brand panel"><span class="logo"></span><span class="t">AV-Track</span></div>
+          <div id="status-pill" class="panel"><span id="status-dot"></span><span id="status-text">Initializing…</span></div>
+          <div id="sensors">
+            <span id="sensor-cam" class="sensor panel"><i></i><span class="lbl">Camera</span></span>
+            <span id="sensor-sonar" class="sensor panel"><i></i><span class="lbl">Sonar</span></span>
+          </div>
+        </header>
+
+        <aside id="sonar-box" class="panel">
+          <div class="cap">SONAR · RANGE PROFILE</div>
+          <canvas id="waterfall" width="240" height="130"></canvas>
+        </aside>
+
+        <div id="legend">
+          <span><i class="sw box"></i> Detected target</span>
+          <span><i class="sw ring2"></i> Sonar search area</span>
+          <span><i class="sw char"></i> AR marker</span>
+        </div>
+
+        <section id="dock" class="panel">
+          <div class="dock-head">
+            <span id="d-target" class="target-chip">No target</span>
+            <span class="hint">point at a person or pet</span>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="m-label">Distance</div>
+              <div class="m-value"><span id="d-distance">—</span></div>
+              <span id="d-motion" class="m-chip"></span>
+            </div>
+            <div class="metric">
+              <div class="m-label">Direction</div>
+              <div class="gauge"><div class="gauge-track"></div><div class="gauge-center"></div><div id="dir-dot" class="gauge-dot"></div></div>
+              <div id="d-direction" class="m-sub">—</div>
+            </div>
+            <div class="metric confidence">
+              <div class="m-label">Confidence</div>
+              <div id="conf-ring" class="ring"><span id="d-conf">—</span></div>
+              <div id="d-lock" class="m-sub">—</div>
+            </div>
+          </div>
+          <div id="tech">starting…</div>
+        </section>
+
+        <div id="error-banner" class="hidden"><strong>Something went wrong</strong><div id="error-text"></div></div>
       </div>
+
       <div id="start">
-        <div>
+        <div class="card">
+          <div class="brand"><span class="logo"></span><span class="t">AV-Track</span></div>
+          <div class="tag">Acoustic · Visual · AR</div>
+          <h1>Track anything with sound&nbsp;+&nbsp;sight</h1>
+          <p class="lead">Fuses near-ultrasonic sonar with on-device vision to follow a person or pet and lock a 3D marker onto them in augmented reality.</p>
           <button id="start-btn">Start Tracking</button>
-          <p>
-            Emits a low-level near-ultrasonic sonar sweep and uses the camera to
-            track a target in AR. Requires microphone + camera permission. Best
-            on a phone in landscape; headphones not required.
-          </p>
+          <div class="steps">
+            <div class="step"><span class="n">1</span><span>Hold the phone in <b>landscape</b></span></div>
+            <div class="step"><span class="n">2</span><span>Allow <b>camera</b> &amp; <b>microphone</b> access</span></div>
+            <div class="step"><span class="n">3</span><span>Point at a <b>person, cat or dog</b></span></div>
+          </div>
+          <p class="foot">Emits a faint near-ultrasonic sweep (18.5–21.5&nbsp;kHz). Audible to some people and pets — keep the volume moderate.</p>
         </div>
       </div>
     </div>

@@ -21,7 +21,6 @@ export class RenderAdapter {
     private readonly scene: ArScene,
     private readonly overlay: Overlay,
     private readonly waterfall: Waterfall,
-    private readonly hud: HTMLElement,
   ) {}
 
   setCameraSize(w: number, h: number): void {
@@ -47,11 +46,10 @@ export class RenderAdapter {
     this.waterfall.push(mags);
   }
 
-  /** Redraw the 2D overlay and HUD; call once per render frame. */
-  tick(hudText: string): void {
+  /** Redraw the 2D detection/ellipse overlay; call once per render frame. */
+  tick(): void {
     this.overlay.clear();
     this.overlay.drawDetections(this.boxes, this.camW, this.camH);
     if (this.ellipse) this.overlay.drawSearchEllipse(this.ellipse, this.camW, this.camH);
-    this.hud.textContent = hudText;
   }
 }

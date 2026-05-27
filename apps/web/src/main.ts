@@ -5,6 +5,7 @@ import {
   type CameraIntrinsics,
   type Detection,
   type TelemetrySnapshot,
+  type TrackState,
   type VisualMeasurement,
 } from "@avt/contracts";
 import type { ChirpSpec } from "@avt/dsp";
@@ -18,6 +19,7 @@ import { ArScene } from "./render/ArScene.js";
 import { Overlay } from "./render/Overlay.js";
 import { Waterfall } from "./render/Waterfall.js";
 import { RenderAdapter } from "./render/RenderAdapter.js";
+import { Hud, type HudView, type TrackingState } from "./render/Hud.js";
 import { createDefaultCouncil } from "./agents/index.js";
 
 const CHIRP: ChirpSpec = {
@@ -61,10 +63,58 @@ function bestDetection(dets: Detection[]): Detection | null {
   return best;
 }
 
+interface HudExtras {
+  confidence: number;
+  fps: number;
+  backend: string;
+  transport: string;
+  azimuthMode: string;
+}
+
+/** Translate raw fused state into clear, human-readable HUD values. */
+function buildHudView(ts: TrackState, fusion: FusionCore, x: HudExtras): HudView {
+  if (!fusion.initialized) {
+    return {
+      state: "searching",
+      targetLabel: "—",
+      distanceM: null,
+      azimuthDeg: null,
+      motion: null,
+      confidence: 0,
+      lock: null,
+      fps: x.fps,
+      backend: x.backend,
+      transport: x.transport,
+      azimuthMode: x.azimuthMode,
+    };
+  }
+  const p = ts.position;
+  const v = ts.velocity;
+  const dist = Math.hypot(p.x, p.y, p.z);
+  const azimuthDeg = (Math.atan2(p.x, p.z) * 180) / Math.PI;
+  const radial = dist > 1e-3 ? (v.x * p.x + v.y * p.y + v.z * p.z) / dist : 0;
+  const motion: HudView["motion"] = radial < -0.05 ? "approaching" : radial > 0.05 ? "receding" : "steady";
+  const lockStd = Math.sqrt(Math.max(ts.posUncertainty, 0));
+  const state: TrackingState = lockStd > 1.5 ? "lost" : fusion.visuallyTracked ? "tracking" : "sonar";
+  const lock: HudView["lock"] = lockStd < 0.15 ? "strong" : lockStd < 0.4 ? "medium" : "weak";
+  return {
+    state,
+    targetLabel: ts.classLabel,
+    distanceM: dist,
+    azimuthDeg,
+    motion,
+    confidence: x.confidence,
+    lock,
+    fps: x.fps,
+    backend: x.backend,
+    transport: x.transport,
+    azimuthMode: x.azimuthMode,
+  };
+}
+
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-async function run(): Promise<void> {
-  const hud = document.getElementById("hud") as HTMLElement;
+async function run(hud: Hud): Promise<void> {
   const arCanvas = document.getElementById("ar-canvas") as HTMLCanvasElement;
   const overlayCanvas = document.getElementById("overlay-canvas") as HTMLCanvasElement;
   const waterfallCanvas = document.getElementById("waterfall") as HTMLCanvasElement;
@@ -73,19 +123,21 @@ async function run(): Promise<void> {
   const sel = selectPipeline(caps);
 
   // --- Camera + detector ---
+  hud.setStatusText("Requesting camera…");
   const camera = new GumCameraSource();
   await camera.start();
+  hud.setSensors(true, false);
   const K = makeIntrinsics(camera.width, camera.height);
 
   const detector = new TfjsDetector({ backend: "webgl" });
-  hud.textContent = "warming up detector…";
+  hud.setStatusText("Loading detector…");
   await detector.warmup();
 
   // --- Scene ---
   const scene = new ArScene(arCanvas);
   const overlay = new Overlay(overlayCanvas);
   const waterfall = new Waterfall(waterfallCanvas);
-  const render = new RenderAdapter(scene, overlay, waterfall, hud);
+  const render = new RenderAdapter(scene, overlay, waterfall);
   render.setCameraSize(camera.width, camera.height);
   window.addEventListener("resize", () => overlay.resize());
 
@@ -125,11 +177,13 @@ async function run(): Promise<void> {
     },
     onProfile: (mags) => render.onProfile(mags),
   });
+  let sonarActive = true;
   try {
     await acoustic.start();
   } catch {
-    hud.textContent += "\n(no microphone — vision-only)";
+    sonarActive = false;
   }
+  hud.setSensors(true, sonarActive);
 
   // --- Detection loop (decoupled from render) ---
   let running = true;
@@ -197,17 +251,15 @@ async function run(): Promise<void> {
     const ts = fusion.toTrackState();
     render.onTrack(ts);
     render.onSearchEllipse(fusion.initialized && !fusion.visuallyTracked ? fusion.searchEllipse() : null);
-
-    const p = ts.position;
-    const range = Math.hypot(p.x, p.y, p.z);
-    render.tick(
-      [
-        `mode: ${usingXR ? "WebXR AR" : "camera overlay"}  backend: ${detector.activeBackend}`,
-        `transport: ${sel.audioTransport}  azimuth: ${acoustic.azimuthAvailable ? "dual-mic" : "vision-only"}`,
-        `target: ${ts.tracked ? ts.classLabel : "—"}  range: ${range.toFixed(2)} m`,
-        `pos[m] x:${p.x.toFixed(2)} y:${p.y.toFixed(2)} z:${p.z.toFixed(2)}  fps:${fps.toFixed(0)}`,
-        `conf:${(lastConfidence * 100).toFixed(0)}%  unc:${ts.posUncertainty.toFixed(2)}  inf:${inferenceMs.toFixed(0)}ms`,
-      ].join("\n"),
+    render.tick();
+    hud.update(
+      buildHudView(ts, fusion, {
+        confidence: lastConfidence,
+        fps,
+        backend: detector.activeBackend,
+        transport: sel.audioTransport,
+        azimuthMode: acoustic.azimuthAvailable ? "dual-mic" : "vision-only",
+      }),
     );
   });
 
@@ -243,9 +295,9 @@ const startScreen = document.getElementById("start");
 const startBtn = document.getElementById("start-btn");
 startBtn?.addEventListener("click", () => {
   startScreen?.classList.add("hidden");
-  run().catch((err) => {
-    const hud = document.getElementById("hud");
-    if (hud) hud.textContent = `error: ${err instanceof Error ? err.message : String(err)}`;
+  const hud = new Hud();
+  run(hud).catch((err) => {
+    hud.showError(err instanceof Error ? err.message : String(err));
     console.error(err);
   });
 });

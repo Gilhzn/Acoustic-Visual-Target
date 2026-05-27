@@ -7,4 +7,5 @@ export * from "./iqdemod.js";
 export * from "./clutter.js";
 export * from "./rangeProfile.js";
 export * from "./pdoa.js";
+export * from "./breathing.js";
 export * from "./pipeline.js";

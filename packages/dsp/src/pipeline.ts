@@ -22,6 +22,7 @@ import { EwmaClutter, zeroBelowBin } from "./clutter.js";
 import { pickPeak } from "./rangeProfile.js";
 import { phaseDiff, pdoaToAzimuth } from "./pdoa.js";
 import { makeWindow } from "./window.js";
+import { BreathingDetector } from "./breathing.js";
 
 export interface PipelineOpts {
   /** Physical mic baseline (m). Drives PDoA azimuth + its ambiguity. */
@@ -45,6 +46,9 @@ export interface PipelineOpts {
   minSnrDb?: number;
   /** Carrier for the PDoA wavelength (default mid-band). */
   carrierHz?: number;
+  /** Track echo-phase micro-motion to detect breathing / life signs. */
+  breathing?: boolean;
+  breathingWindowSec?: number;
 }
 
 function nextPow2(n: number): number {
@@ -98,6 +102,7 @@ export class AcousticPipeline implements RangeProcessor {
   private readonly re1: Float32Array;
   private readonly im1: Float32Array;
   private readonly mag0: Float32Array;
+  private readonly breath: BreathingDetector | null;
 
   constructor(spec: ChirpSpec, opts: PipelineOpts = {}) {
     this.spec = spec;
@@ -116,11 +121,20 @@ export class AcousticPipeline implements RangeProcessor {
       nearFieldGateM: opts.nearFieldGateM ?? 0.15,
       minSnrDb: opts.minSnrDb ?? 6,
       carrierHz: opts.carrierHz ?? ((spec.fStart as number) + (spec.fEnd as number)) / 2,
+      breathing: opts.breathing ?? false,
+      breathingWindowSec: opts.breathingWindowSec ?? 12,
     };
     this.opts = o;
     this.refLen = chirpSamples(spec);
     this.basebandRate = fs / o.decimation;
     this.lambdaM = (SPEED_OF_SOUND_MPS as number) / o.carrierHz;
+    this.breath = o.breathing
+      ? new BreathingDetector({
+          frameRateHz: fs / this.refLen,
+          carrierHz: o.carrierHz,
+          windowSec: o.breathingWindowSec,
+        })
+      : null;
 
     const decimLen = Math.floor(this.refLen / o.decimation);
     this.fftSize = Math.min(8192, nextPow2(decimLen * o.zeroPad));
@@ -184,6 +198,7 @@ export class AcousticPipeline implements RangeProcessor {
     this.fir1.reset();
     this.clut0.reset();
     this.clut1.reset();
+    this.breath?.reset();
   }
 
   /** Range resolution of the configured chirp (c/2B). */
@@ -264,7 +279,8 @@ export class AcousticPipeline implements RangeProcessor {
     const az = pdoaToAzimuth(dPhi, meters(this.opts.micBaselineM), meters(this.lambdaM));
 
     const valid = (peak.snrDb as number) >= this.opts.minSnrDb && (rangeM as number) > 0;
-    return {
+
+    const out: AcousticMeasurement = {
       rangeM,
       azimuthRad: az.theta,
       aliases: az.aliases,
@@ -273,5 +289,14 @@ export class AcousticPipeline implements RangeProcessor {
       tSec,
       valid,
     };
+
+    if (this.breath) {
+      this.breath.push(this.re0[bin], this.im0[bin]);
+      const br = this.breath.analyze();
+      out.breathingRateBpm = br.alive ? br.rateBpm : 0;
+      out.lifeSnrDb = br.snrDb as number;
+      out.alive = br.alive;
+    }
+    return out;
   }
 }

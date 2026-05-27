@@ -77,6 +77,8 @@ interface HudExtras {
   azimuthMode: string;
   detCount: number;
   camInfo: string;
+  alive: boolean;
+  breathingBpm: number;
 }
 
 /** Translate raw fused state into clear, human-readable HUD values. */
@@ -96,6 +98,8 @@ function buildHudView(ts: TrackState, fusion: FusionCore, x: HudExtras): HudView
       azimuthMode: x.azimuthMode,
       detCount: x.detCount,
       camInfo: x.camInfo,
+      alive: x.alive,
+      breathingBpm: x.breathingBpm,
     };
   }
   const p = ts.position;
@@ -121,6 +125,8 @@ function buildHudView(ts: TrackState, fusion: FusionCore, x: HudExtras): HudView
     azimuthMode: x.azimuthMode,
     detCount: x.detCount,
     camInfo: x.camInfo,
+    alive: x.alive,
+    breathingBpm: x.breathingBpm,
   };
 }
 
@@ -193,17 +199,21 @@ async function run(hud: Hud): Promise<void> {
   let lastDetCount = 0;
   let camW = camera.width;
   let camH = camera.height;
+  let lastAlive = false;
+  let lastBpm = 0;
   let inferenceMs = 0;
   let fps = 60;
   let lastFrameTime = now();
 
-  // --- Acoustic capture ---
+  // --- Acoustic capture (with breathing / life-sign detection) ---
   const acoustic = new AcousticTracker({
     spec: CHIRP,
-    engine: { profileBins: 96, pipeline: { micBaselineM: 0.1 } },
+    engine: { profileBins: 96, pipeline: { micBaselineM: 0.1, breathing: true } },
     onMeasurement: (m: AcousticMeasurement) => {
       const stamped: AcousticMeasurement = { ...m, tSec: seconds(now()) };
       fusion.onAcoustic(stamped, council.state.fusion.rAcousticAzScale);
+      lastAlive = m.alive ?? false;
+      lastBpm = m.breathingRateBpm ?? 0;
     },
     onProfile: (mags) => render.onProfile(mags),
   });
@@ -301,6 +311,8 @@ async function run(hud: Hud): Promise<void> {
         azimuthMode: acoustic.azimuthAvailable ? "dual-mic" : "vision-only",
         detCount: lastDetCount,
         camInfo: `${camW}×${camH}`,
+        alive: lastAlive,
+        breathingBpm: lastBpm,
       }),
     );
   });

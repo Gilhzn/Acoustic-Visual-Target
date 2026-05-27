@@ -35,6 +35,12 @@ export interface AcousticMeasurement {
   snrDb: Decibels;
   tSec: Seconds;
   valid: boolean;
+  /** Breaths/min from echo-phase micro-motion (optional; 0 if undetected). */
+  breathingRateBpm?: number;
+  /** Confidence of the breathing oscillation (dB). */
+  lifeSnrDb?: number;
+  /** True when a living, breathing body is detected acoustically. */
+  alive?: boolean;
 }
 
 /**

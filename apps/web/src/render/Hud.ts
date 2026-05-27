@@ -17,6 +17,10 @@ export interface HudView {
   detCount: number;
   /** Camera resolution string, e.g. "1280×720" (live diagnostic). */
   camInfo: string;
+  /** Acoustic life-sign detected (breathing micro-motion). */
+  alive: boolean;
+  /** Estimated breathing rate (breaths/min). */
+  breathingBpm: number;
 }
 
 /** Half horizontal field-of-view (deg) the direction gauge spans each side. */
@@ -63,6 +67,7 @@ export class Hud {
   private readonly ring = el("conf-ring");
   private readonly conf = el("d-conf");
   private readonly lock = el("d-lock");
+  private readonly life = el("d-life");
   private readonly tech = el("tech");
   private readonly sensorCam = el("sensor-cam");
   private readonly sensorSonar = el("sensor-sonar");
@@ -121,6 +126,10 @@ export class Hud {
     this.ring.style.setProperty("--p", tracked ? String(pct) : "0");
     this.conf.textContent = tracked ? `${pct}%` : "—";
     this.lock.textContent = v.lock ? `Lock: ${v.lock}` : "—";
+
+    // Acoustic life sign (breathing micro-motion).
+    this.life.classList.toggle("alive", v.alive);
+    this.life.textContent = v.alive ? `Living · ${Math.round(v.breathingBpm)} bpm` : "Life sign: —";
 
     this.tech.textContent = `${v.backend} · ${v.azimuthMode} · cam ${v.camInfo} · det ${v.detCount} · ${Math.round(v.fps)} fps`;
   }

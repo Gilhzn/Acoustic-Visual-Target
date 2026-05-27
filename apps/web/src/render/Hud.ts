@@ -66,13 +66,15 @@ export class Hud {
   private readonly tech = el("tech");
   private readonly sensorCam = el("sensor-cam");
   private readonly sensorSonar = el("sensor-sonar");
+  private readonly sensorMotion = el("sensor-motion");
   private readonly errorBanner = el("error-banner");
   private readonly errorText = el("error-text");
   private currentStateClass = "state-init";
 
-  setSensors(cam: boolean, sonar: boolean): void {
+  setSensors(cam: boolean, sonar: boolean, motion: boolean): void {
     this.sensorCam.classList.toggle("on", cam);
     this.sensorSonar.classList.toggle("on", sonar);
+    this.sensorMotion.classList.toggle("on", motion);
   }
 
   setStatusText(text: string): void {

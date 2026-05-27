@@ -20,6 +20,7 @@ import { Overlay } from "./render/Overlay.js";
 import { Waterfall } from "./render/Waterfall.js";
 import { RenderAdapter } from "./render/RenderAdapter.js";
 import { Hud, type HudView, type TrackingState } from "./render/Hud.js";
+import { GyroSource } from "./sensors/GyroSource.js";
 import { createDefaultCouncil } from "./agents/index.js";
 
 const CHIRP: ChirpSpec = {
@@ -41,11 +42,16 @@ function knownHeight(label: string): number {
   return KNOWN_OBJECT_HEIGHTS_M[label] ?? KNOWN_OBJECT_HEIGHTS_M.default;
 }
 
+/** Plausible indoor range bounds (m) for monocular depth + the EKF. */
+const MIN_RANGE_M = 0.3;
+const MAX_RANGE_M = 12;
+
 function detectionToVisual(d: Detection, K: CameraIntrinsics, tSec: number): VisualMeasurement {
   const [x0, y0, x1, y1] = d.bbox;
   const u = (x0 + x1) / 2;
   const v = (y0 + y1) / 2;
-  const depth = depthFromSize(y1 - y0, knownHeight(d.classLabel), K.fy);
+  const rawDepth = depthFromSize(y1 - y0, knownHeight(d.classLabel), K.fy);
+  const depth = Math.min(Math.max(rawDepth, MIN_RANGE_M), MAX_RANGE_M);
   return {
     u,
     v,
@@ -128,11 +134,15 @@ async function run(hud: Hud): Promise<void> {
   const caps = detectCapabilities();
   const sel = selectPipeline(caps);
 
+  // --- Motion (gyro) — request first while still in the user gesture (iOS) ---
+  const gyro = new GyroSource();
+  const motionOk = await gyro.start();
+
   // --- Camera + detector ---
   hud.setStatusText("Requesting camera…");
   const camera = new GumCameraSource();
   await camera.start();
-  hud.setSensors(true, false);
+  hud.setSensors(true, false, motionOk);
   const K = makeIntrinsics(camera.width, camera.height);
 
   const detector = new TfjsDetector({ backend: "webgl", minScore: 0.4 });
@@ -168,7 +178,12 @@ async function run(hud: Hud): Promise<void> {
   }
 
   // --- Fusion + council ---
-  const fusion = new FusionCore({ intrinsics: K, ekf: { sigmaA: 1.2 } });
+  const fusion = new FusionCore({
+    intrinsics: K,
+    ekf: { sigmaA: 0.8 },
+    maxRangeM: MAX_RANGE_M,
+    maxSpeed: 4,
+  });
   const council = createDefaultCouncil();
 
   const t0 = performance.now();
@@ -198,7 +213,7 @@ async function run(hud: Hud): Promise<void> {
   } catch {
     sonarActive = false;
   }
-  hud.setSensors(true, sonarActive);
+  hud.setSensors(true, sonarActive, motionOk);
 
   // --- Detection loop (decoupled from render; resilient to per-frame errors) ---
   let running = true;
@@ -272,6 +287,7 @@ async function run(hud: Hud): Promise<void> {
     if (dt > 0) fps = fps * 0.9 + 0.1 / dt;
 
     fusion.predictTo(t);
+    if (gyro.available) scene.setUpright(gyro.gamma);
     const ts = fusion.toTrackState();
     render.onTrack(ts);
     render.onSearchEllipse(fusion.initialized && !fusion.visuallyTracked ? fusion.searchEllipse() : null);
@@ -293,6 +309,7 @@ async function run(hud: Hud): Promise<void> {
     running = false;
     void acoustic.stop();
     void camera.stop();
+    gyro.stop();
     scene.dispose();
   });
 }

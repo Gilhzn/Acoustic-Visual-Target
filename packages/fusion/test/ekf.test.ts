@@ -46,6 +46,24 @@ describe("Ekf prediction", () => {
   });
 });
 
+describe("Ekf.clampState", () => {
+  it("caps range and speed and keeps the target in front", () => {
+    const ekf = new Ekf(makeState(100, 0, 100, 10, 0, 10), diagCov(1, 1));
+    ekf.clampState(12, 4);
+    const p = ekf.position();
+    const v = ekf.velocity();
+    expect(Math.hypot(p.x, p.y, p.z)).toBeCloseTo(12, 4);
+    expect(Math.hypot(v.x, v.y, v.z)).toBeLessThanOrEqual(4 + 1e-6);
+    expect(p.z).toBeGreaterThan(0);
+  });
+
+  it("lifts a behind-camera target back in front", () => {
+    const ekf = new Ekf(makeState(0, 0, -5), diagCov(1, 1));
+    ekf.clampState(12, 4);
+    expect(ekf.position().z).toBeGreaterThanOrEqual(0.1);
+  });
+});
+
 describe("Ekf correction", () => {
   it("converges to a static target from exact measurements", () => {
     const truth = { x: 0.5, y: 0.2, z: 3.0 };

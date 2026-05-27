@@ -73,6 +73,40 @@ describe("FusionCore", () => {
     expect(fc.position().x).toBeCloseTo(truth.x, 1);
   });
 
+  it("rejects sonar beyond the max range and stays bounded", () => {
+    const fc = new FusionCore({ intrinsics: K, maxRangeM: 12 });
+    fc.initFromVisual(vis(700, 360, 3, 0));
+    const res = fc.onAcoustic(aco(999, 0, [0], 0.1));
+    expect(res).toBeNull();
+    const p = fc.position();
+    expect(Math.hypot(p.x, p.y, p.z)).toBeLessThanOrEqual(12.01);
+  });
+
+  it("never runs away while coasting on receding depth", () => {
+    const fc = new FusionCore({ intrinsics: K, maxRangeM: 12, ekf: { sigmaA: 3 } });
+    fc.initFromVisual(vis(700, 360, 3, 0));
+    for (let k = 1; k <= 12; k++) {
+      const t = k * 0.1;
+      fc.onVisual(vis(700, 360, 3 + k * 0.6, t), t); // appears to recede fast
+    }
+    for (let k = 1; k <= 60; k++) fc.predictTo(2 + k * 0.5); // long coast
+    const p = fc.position();
+    expect(Math.hypot(p.x, p.y, p.z)).toBeLessThanOrEqual(12.01);
+  });
+
+  it("re-acquires from a fresh detection after divergence", () => {
+    // Tiny divergeVar forces the post-init state to count as diverged.
+    const fc = new FusionCore({ intrinsics: K, maxRangeM: 12, divergeVar: 1e-6 });
+    fc.initFromVisual(vis(700, 360, 3, 0));
+    expect(fc.isDiverged()).toBe(true);
+    const u2 = 400;
+    const z2 = 5;
+    fc.onVisual(vis(u2, 360, z2, 1), 1); // should re-init here
+    const expX = ((u2 - K.cx) * z2) / K.fx;
+    expect(fc.position().x).toBeCloseTo(expX, 1);
+    expect(fc.position().z).toBeCloseTo(z2, 1);
+  });
+
   it("flags coasting after sustained visual misses", () => {
     const fc = new FusionCore({ intrinsics: K });
     fc.initFromVisual(vis(700, 360, 3, 0));

@@ -114,6 +114,11 @@ export class ArScene {
     this.target.visible = v;
   }
 
+  /** Counter-rotate the marker by the device roll so it stays upright (gyro). */
+  setUpright(rollDeg: number): void {
+    this.target.rotation.z = (-rollDeg * Math.PI) / 180;
+  }
+
   /** True if the target group is within the camera frustum. */
   isTargetInFrustum(): boolean {
     this.camera.updateMatrixWorld();

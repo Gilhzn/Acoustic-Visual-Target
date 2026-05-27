@@ -109,6 +109,29 @@ export class Ekf {
     return { x: this.x[VX], y: this.x[VY], z: this.x[VZ] };
   }
 
+  /**
+   * Clamp the estimate to physically sane bounds: keep the target in front of
+   * the camera, cap range and speed. Prevents the filter from running away
+   * during coasting on noisy monocular depth.
+   */
+  clampState(maxRangeM: number, maxSpeed: number): void {
+    if (this.x[PZ] < 0.1) this.x[PZ] = 0.1;
+    const r = Math.sqrt(this.x[PX] ** 2 + this.x[PY] ** 2 + this.x[PZ] ** 2);
+    if (r > maxRangeM && r > 1e-6) {
+      const k = maxRangeM / r;
+      this.x[PX] *= k;
+      this.x[PY] *= k;
+      this.x[PZ] *= k;
+    }
+    const sp = Math.sqrt(this.x[VX] ** 2 + this.x[VY] ** 2 + this.x[VZ] ** 2);
+    if (sp > maxSpeed && sp > 1e-6) {
+      const k = maxSpeed / sp;
+      this.x[VX] *= k;
+      this.x[VY] *= k;
+      this.x[VZ] *= k;
+    }
+  }
+
   /** Predict the state forward to time `t` (no-op / clamped for dt ≤ 0). */
   predictTo(t: number): void {
     const dt = t - this.tSec;

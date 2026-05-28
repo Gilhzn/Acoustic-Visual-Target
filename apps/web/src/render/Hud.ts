@@ -1,3 +1,5 @@
+import { t } from "../i18n/i18n.js";
+
 export type TrackingState = "init" | "searching" | "tracking" | "sonar" | "lost";
 
 export interface HudView {
@@ -26,12 +28,12 @@ export interface HudView {
 /** Half horizontal field-of-view (deg) the direction gauge spans each side. */
 const GAUGE_FOV = 35;
 
-const STATUS_TEXT: Record<TrackingState, string> = {
-  init: "Initializing…",
-  searching: "Searching for target",
-  tracking: "Tracking",
-  sonar: "Target hidden · sonar only",
-  lost: "Signal lost",
+const STATUS_KEY: Record<TrackingState, string> = {
+  init: "status.init",
+  searching: "status.searching",
+  tracking: "status.tracking",
+  sonar: "status.sonar",
+  lost: "status.lost",
 };
 
 const STATE_CLASS: Record<TrackingState, string> = {
@@ -93,10 +95,10 @@ export class Hud {
       this.overlay.classList.add(cls);
       this.currentStateClass = cls;
     }
-    this.statusText.textContent = STATUS_TEXT[v.state];
+    this.statusText.textContent = t(STATUS_KEY[v.state]);
 
     const tracked = v.distanceM != null;
-    this.target.textContent = tracked ? cap(v.targetLabel) : "No target";
+    this.target.textContent = tracked ? cap(v.targetLabel) : t("ui.target_none");
 
     this.distance.innerHTML =
       v.distanceM == null ? "—" : `${v.distanceM.toFixed(1)}<span class="unit">m</span>`;
@@ -104,7 +106,7 @@ export class Hud {
     // Motion chip (only when meaningfully moving).
     this.motion.className = "m-chip";
     if (v.motion === "approaching" || v.motion === "receding") {
-      this.motion.textContent = v.motion;
+      this.motion.textContent = t(`ui.motion_${v.motion}`);
       this.motion.classList.add("show", v.motion);
     } else {
       this.motion.textContent = "";
@@ -125,11 +127,13 @@ export class Hud {
     const pct = Math.round(clamp01(v.confidence) * 100);
     this.ring.style.setProperty("--p", tracked ? String(pct) : "0");
     this.conf.textContent = tracked ? `${pct}%` : "—";
-    this.lock.textContent = v.lock ? `Lock: ${v.lock}` : "—";
+    this.lock.textContent = v.lock ? `${t("ui.lock")}: ${t(`ui.lock_${v.lock}`)}` : "—";
 
     // Acoustic life sign (breathing micro-motion).
     this.life.classList.toggle("alive", v.alive);
-    this.life.textContent = v.alive ? `Living · ${Math.round(v.breathingBpm)} bpm` : "Life sign: —";
+    this.life.textContent = v.alive
+      ? `${t("ui.life_living")} · ${Math.round(v.breathingBpm)} ${t("ui.life_unit")}`
+      : t("ui.life_none");
 
     this.tech.textContent = `${v.backend} · ${v.azimuthMode} · cam ${v.camInfo} · det ${v.detCount} · ${Math.round(v.fps)} fps`;
   }
@@ -146,6 +150,6 @@ export class Hud {
 
 function formatDirection(deg: number): string {
   const r = Math.round(deg);
-  if (Math.abs(r) <= 4) return "ahead";
-  return r > 0 ? `${r}° right` : `${Math.abs(r)}° left`;
+  if (Math.abs(r) <= 4) return t("ui.direction_ahead");
+  return r > 0 ? `${r}° ${t("ui.direction_right")}` : `${Math.abs(r)}° ${t("ui.direction_left")}`;
 }

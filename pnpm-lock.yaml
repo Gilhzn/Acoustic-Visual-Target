@@ -17,6 +17,9 @@ importers:
       dependency-cruiser:
         specifier: ^16.4.0
         version: 16.10.4
+      happy-dom:
+        specifier: ^15.11.0
+        version: 15.11.7
       tsx:
         specifier: ^4.19.2
         version: 4.22.3

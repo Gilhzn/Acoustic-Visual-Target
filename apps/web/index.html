@@ -220,6 +220,80 @@
         #reticle, #status-dot, #dock { animation: none !important; }
         .gauge-dot { transition: none; }
       }
+
+      /* ============ Menu / drawer / analysis view / i18n ============ */
+      .brand { cursor: pointer; pointer-events: auto; user-select: none; }
+      .brand .hamb { font-size: 14px; opacity: 0.75; }
+      .sensor { pointer-events: auto; }
+
+      .drawer {
+        position: fixed; inset-block: 0; inset-inline-start: 0;
+        width: min(86vw, 320px); z-index: 30;
+        background: rgba(8,14,22,0.96); backdrop-filter: blur(14px);
+        border-inline-end: 1px solid var(--hair);
+        padding: calc(var(--safe-t) + 14px) 16px calc(var(--safe-b) + 16px);
+        transform: translateX(-100%); transition: transform 0.25s cubic-bezier(0.16,1,0.3,1);
+        display: flex; flex-direction: column; gap: 14px; pointer-events: auto;
+        box-shadow: 0 0 40px rgba(0,0,0,0.5);
+      }
+      .drawer.open { transform: translateX(0); }
+      [dir="rtl"] .drawer { transform: translateX(100%); border-inline-end: none; border-inline-start: 1px solid var(--hair); }
+      [dir="rtl"] .drawer.open { transform: translateX(0); }
+      .drawer-head { display: flex; justify-content: space-between; align-items: center; }
+      .drawer-head .brand { cursor: default; }
+      .icon-btn { pointer-events: auto; width: 38px; height: 38px; display: inline-grid; place-items: center; background: rgba(255,255,255,0.06); border: 1px solid var(--hair); color: var(--text); border-radius: 50%; font-size: 18px; cursor: pointer; line-height: 1; }
+      .icon-btn:hover { background: rgba(255,255,255,0.12); }
+      .drawer-nav { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+      .nav-item { pointer-events: auto; padding: 13px 14px; background: rgba(255,255,255,0.05); border: 1px solid var(--hair); border-radius: 10px; color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-align: start; }
+      .nav-item:hover { background: rgba(255,255,255,0.08); }
+      .nav-item.active { background: rgba(37,232,192,0.15); border-color: var(--accent); color: var(--accent); }
+      .drawer-section { margin-top: 6px; }
+      .drawer-label { font-size: 11px; letter-spacing: 0.08em; color: var(--text-3); text-transform: uppercase; margin-bottom: 7px; }
+      .lang-toggle { display: flex; gap: 7px; }
+      .lang-btn { pointer-events: auto; flex: 1; padding: 9px 10px; background: rgba(255,255,255,0.05); border: 1px solid var(--hair); border-radius: 8px; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+      .lang-btn.active { background: linear-gradient(180deg, var(--accent), var(--accent-2)); border-color: transparent; color: #04140f; }
+      .drawer .foot { margin-top: auto; font-size: 11px; color: var(--text-3); line-height: 1.5; opacity: 0.85; }
+
+      /* Analysis view */
+      #analysis-view {
+        position: absolute; inset: 0; z-index: 20;
+        background: linear-gradient(180deg, rgba(5,10,16,0.97), rgba(5,8,12,0.99));
+        backdrop-filter: blur(10px);
+        pointer-events: auto; overflow-y: auto;
+        padding: calc(var(--safe-t) + 14px) 14px calc(var(--safe-b) + 24px);
+      }
+      .analysis-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 720px; margin: 0 auto 14px; }
+      .analysis-head h2 { font-size: 19px; flex: 1; }
+      .analysis-head .subtitle { flex-basis: 100%; font-size: 12px; color: var(--text-2); }
+      #analysis-body { display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin: 0 auto; }
+      .analysis-empty { padding: 30px 18px; color: var(--text-2); text-align: center; font-size: 14px; background: var(--panel); border: 1px solid var(--hair); border-radius: var(--r-md); }
+      .analysis-card { padding: 16px 18px; background: var(--panel); border: 1px solid var(--hair); border-radius: var(--r-md); display: flex; flex-direction: column; gap: 11px; }
+      .analysis-card header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .analysis-card header h3 { font-size: 17px; flex: 1; min-width: 100px; color: var(--text); }
+      .state-chip { padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+      .state-chip.state-calm { background: rgba(86,182,255,0.18); color: var(--blue); }
+      .state-chip.state-still { background: rgba(255,255,255,0.12); color: var(--text-2); }
+      .state-chip.state-engaged { background: rgba(37,232,192,0.2); color: var(--accent); }
+      .state-chip.state-restless { background: rgba(255,206,92,0.22); color: var(--amber); }
+      .state-chip.state-unknown { background: rgba(255,255,255,0.08); color: var(--text-3); }
+      .rename-btn { pointer-events: auto; padding: 6px 11px; background: rgba(255,255,255,0.06); border: 1px solid var(--hair); border-radius: 8px; color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+      .analysis-card h4 { font-size: 10.5px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.09em; }
+      .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4px 18px; }
+      .kv { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--text-2); padding: 5px 0; border-bottom: 1px dashed rgba(255,255,255,0.06); }
+      .kv .v { color: var(--text); font-variant-numeric: tabular-nums; }
+      .spark { width: 100%; height: 60px; display: block; background: rgba(0,0,0,0.4); border-radius: 8px; }
+      .honesty-note { font-size: 11px; color: var(--text-3); line-height: 1.55; padding: 8px 4px; opacity: 0.85; max-width: 720px; margin: 0 auto; }
+
+      /* Hide the live overlay UI while the analysis view is open. */
+      body[data-view="analysis"] #topbar,
+      body[data-view="analysis"] #minimap-box,
+      body[data-view="analysis"] #sonar-box,
+      body[data-view="analysis"] #people-panel,
+      body[data-view="analysis"] #dock,
+      body[data-view="analysis"] #reticle { display: none; }
+
+      /* RTL tweaks: gauge dot position uses the same %, but motion chip direction reverses naturally via dir attr. */
+      [dir="rtl"] #dock { text-align: right; }
     </style>
   </head>
   <body>
@@ -231,48 +305,48 @@
         <div id="reticle"></div>
 
         <header id="topbar">
-          <div class="brand panel"><span class="logo"></span><span class="t">AV-Track</span></div>
-          <div id="status-pill" class="panel"><span id="status-dot"></span><span id="status-text">Initializing…</span></div>
+          <button id="menu-brand" class="brand panel" aria-label="Menu"><span class="hamb">☰</span><span class="logo"></span><span class="t">AV-Track</span></button>
+          <div id="status-pill" class="panel"><span id="status-dot"></span><span id="status-text" data-i18n="status.init">Initializing…</span></div>
           <div id="sensors">
-            <span id="sensor-cam" class="sensor panel"><i></i><span class="lbl">Camera</span></span>
-            <span id="sensor-sonar" class="sensor panel"><i></i><span class="lbl">Sonar</span></span>
-            <span id="sensor-motion" class="sensor panel"><i></i><span class="lbl">Motion</span></span>
+            <span id="sensor-cam" class="sensor panel"><i></i><span class="lbl" data-i18n="sensor.camera">Camera</span></span>
+            <span id="sensor-sonar" class="sensor panel"><i></i><span class="lbl" data-i18n="sensor.sonar">Sonar</span></span>
+            <span id="sensor-motion" class="sensor panel"><i></i><span class="lbl" data-i18n="sensor.motion">Motion</span></span>
           </div>
         </header>
 
         <aside id="minimap-box" class="panel">
-          <div class="cap">ROOM LAYOUT</div>
+          <div class="cap" data-i18n="panel.layout">ROOM LAYOUT</div>
           <canvas id="minimap"></canvas>
         </aside>
 
         <aside id="sonar-box" class="panel">
-          <div class="cap">SONAR · RANGE PROFILE</div>
+          <div class="cap" data-i18n="panel.sonar">SONAR · RANGE PROFILE</div>
           <canvas id="waterfall" width="240" height="130"></canvas>
         </aside>
 
         <aside id="people-panel" class="panel">
-          <div class="cap">PEOPLE</div>
+          <div class="cap" data-i18n="panel.people">PEOPLE</div>
           <div id="people-list"></div>
         </aside>
 
         <section id="dock" class="panel">
           <div class="dock-head">
-            <span id="d-target" class="target-chip">No target</span>
-            <span id="d-life" class="life">Life&nbsp;sign: —</span>
+            <span id="d-target" class="target-chip" data-i18n="ui.target_none">No target</span>
+            <span id="d-life" class="life" data-i18n="ui.life_none">Life sign: —</span>
           </div>
           <div class="metrics">
             <div class="metric">
-              <div class="m-label">Distance</div>
+              <div class="m-label" data-i18n="ui.distance">Distance</div>
               <div class="m-value"><span id="d-distance">—</span></div>
               <span id="d-motion" class="m-chip"></span>
             </div>
             <div class="metric">
-              <div class="m-label">Direction</div>
+              <div class="m-label" data-i18n="ui.direction">Direction</div>
               <div class="gauge"><div class="gauge-track"></div><div class="gauge-center"></div><div id="dir-dot" class="gauge-dot"></div></div>
               <div id="d-direction" class="m-sub">—</div>
             </div>
             <div class="metric confidence">
-              <div class="m-label">Confidence</div>
+              <div class="m-label" data-i18n="ui.confidence">Confidence</div>
               <div id="conf-ring" class="ring"><span id="d-conf">—</span></div>
               <div id="d-lock" class="m-sub">—</div>
             </div>
@@ -281,32 +355,60 @@
         </section>
 
         <div id="name-dialog" class="hidden">
-          <h3>Name this person</h3>
+          <h3 data-i18n="dialog.name_title">Name this person</h3>
           <div class="who" id="name-who">—</div>
-          <input id="name-input" type="text" autocomplete="off" placeholder="e.g. Dad, Maya, the cat…" />
+          <input id="name-input" type="text" autocomplete="off" data-i18n-placeholder="dialog.name_placeholder" placeholder="e.g. Dad, Maya, the cat…" />
           <div class="buttons">
-            <button id="name-clear" type="button">Clear</button>
-            <button id="name-cancel" type="button">Cancel</button>
-            <button id="name-save" type="button" class="primary">Save</button>
+            <button id="name-clear" type="button" data-i18n="dialog.name_clear">Clear</button>
+            <button id="name-cancel" type="button" data-i18n="dialog.name_cancel">Cancel</button>
+            <button id="name-save" type="button" class="primary" data-i18n="dialog.name_save">Save</button>
           </div>
         </div>
 
-        <div id="error-banner" class="hidden"><strong>Something went wrong</strong><div id="error-text"></div></div>
+        <aside id="drawer" class="drawer" aria-hidden="true">
+          <div class="drawer-head">
+            <div class="brand"><span class="logo"></span><span class="t">AV-Track</span></div>
+            <button id="drawer-close" class="icon-btn" aria-label="Close">×</button>
+          </div>
+          <nav class="drawer-nav">
+            <button data-view="main" class="nav-item active" data-i18n="menu.main">Main view</button>
+            <button data-view="analysis" class="nav-item" data-i18n="menu.analysis">Person analysis</button>
+          </nav>
+          <div class="drawer-section">
+            <div class="drawer-label" data-i18n="menu.language">Language</div>
+            <div class="lang-toggle">
+              <button data-lang="en" class="lang-btn">English</button>
+              <button data-lang="he" class="lang-btn">עברית</button>
+            </div>
+          </div>
+          <p class="foot" data-i18n="analysis.honesty_note"></p>
+        </aside>
+
+        <section id="analysis-view" class="hidden">
+          <div class="analysis-head">
+            <button id="analysis-back" class="icon-btn" aria-label="Back">←</button>
+            <h2 data-i18n="analysis.title">Person analysis</h2>
+            <p class="subtitle" data-i18n="analysis.subtitle">Live behaviour and history per person</p>
+          </div>
+          <div id="analysis-body"></div>
+        </section>
+
+        <div id="error-banner" class="hidden"><strong data-i18n="error.title">Something went wrong</strong><div id="error-text"></div></div>
       </div>
 
       <div id="start">
         <div class="card">
           <div class="brand"><span class="logo"></span><span class="t">AV-Track</span></div>
-          <div class="tag">Acoustic · Visual · AR</div>
-          <h1>Track anything with sound&nbsp;+&nbsp;sight</h1>
-          <p class="lead">Fuses near-ultrasonic sonar with on-device vision to follow a person or pet and lock a 3D marker onto them in augmented reality.</p>
-          <button id="start-btn">Start Tracking</button>
+          <div class="tag" data-i18n="start.tagline">Acoustic · Visual · AR</div>
+          <h1 data-i18n="start.title">Track anything with sound + sight</h1>
+          <p class="lead" data-i18n="start.lead">Fuses near-ultrasonic sonar with on-device vision to follow a person or pet and lock a 3D marker onto them in augmented reality.</p>
+          <button id="start-btn" data-i18n="start.button">Start Tracking</button>
           <div class="steps">
-            <div class="step"><span class="n">1</span><span>Hold the phone in <b>landscape</b></span></div>
-            <div class="step"><span class="n">2</span><span>Allow <b>camera</b> &amp; <b>microphone</b> access</span></div>
-            <div class="step"><span class="n">3</span><span>Point at a <b>person, cat or dog</b></span></div>
+            <div class="step"><span class="n">1</span><span><span data-i18n="start.step1_lead">Hold the phone in</span> <b data-i18n="start.step1_bold">landscape</b></span></div>
+            <div class="step"><span class="n">2</span><span><span data-i18n="start.step2_lead">Allow</span> <b data-i18n="start.step2_bold_a">camera</b> <span data-i18n="start.step2_amp">&amp;</span> <b data-i18n="start.step2_bold_b">microphone</b></span></div>
+            <div class="step"><span class="n">3</span><span><span data-i18n="start.step3_lead">Point at a</span> <b data-i18n="start.step3_bold">person, cat or dog</b></span></div>
           </div>
-          <p class="foot">Emits a faint near-ultrasonic sweep (18.5–21.5&nbsp;kHz). Audible to some people and pets — keep the volume moderate.</p>
+          <p class="foot" data-i18n="start.foot">Emits a faint near-ultrasonic sweep (18.5–21.5 kHz). Audible to some people and pets — keep the volume moderate.</p>
         </div>
       </div>
     </div>

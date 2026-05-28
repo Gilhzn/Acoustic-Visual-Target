@@ -25,6 +25,9 @@ import { coverFit } from "./render/visuals.js";
 import { GyroSource } from "./sensors/GyroSource.js";
 import { MultiTracker, type TrackedPerson } from "./tracking/MultiTracker.js";
 import { PersonRegistry } from "./tracking/PersonRegistry.js";
+import { applyI18n, initLang, onLangChange, t } from "./i18n/i18n.js";
+import { Menu } from "./ui/Menu.js";
+import { AnalysisView } from "./ui/AnalysisView.js";
 import { createDefaultCouncil } from "./agents/index.js";
 
 const CHIRP: ChirpSpec = {
@@ -347,9 +350,9 @@ async function run(hud: Hud): Promise<void> {
 
   /** Render the named-people side panel (throttled). */
   const updatePeopleList = (): void => {
-    const t = now();
-    if (t - peopleListLast < 0.25) return;
-    peopleListLast = t;
+    const tt = now();
+    if (tt - peopleListLast < 0.25) return;
+    peopleListLast = tt;
     peopleList.innerHTML = "";
     for (const trk of lastTracks) {
       const row = document.createElement("div");
@@ -359,12 +362,27 @@ async function run(hud: Hud): Promise<void> {
       who.textContent = trk.name ?? trk.id;
       const meta = document.createElement("span");
       meta.className = "meta";
-      meta.textContent = `${trk.distanceM.toFixed(1)}m · ${trk.posture}`;
+      meta.textContent = `${trk.distanceM.toFixed(1)}m · ${t(`posture.${trk.posture}`)}`;
       row.appendChild(who);
       row.appendChild(meta);
       peopleList.appendChild(row);
     }
   };
+
+  // --- Menu drawer + analysis view ---
+  const menu = new Menu();
+  const analysisView = new AnalysisView(registry);
+  analysisView.bind(
+    () => lastTracks,
+    (p) => openDialog(p),
+    () => menu.setView("main"),
+  );
+  menu.onView((v) => {
+    if (v === "analysis") analysisView.show();
+    else analysisView.hide();
+  });
+  setInterval(() => analysisView.render(), 500);
+  onLangChange(() => updatePeopleList());
 
   // --- Council loop ---
   const battery = await getBatteryFraction();
@@ -440,6 +458,10 @@ async function getBatteryFraction(): Promise<() => number> {
 }
 
 // --- Boot ---
+initLang();
+applyI18n();
+onLangChange(() => applyI18n());
+
 const startScreen = document.getElementById("start");
 const startBtn = document.getElementById("start-btn");
 startBtn?.addEventListener("click", () => {

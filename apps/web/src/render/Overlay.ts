@@ -2,6 +2,7 @@ import type { Detection } from "@avt/contracts";
 import type { SearchEllipse } from "@avt/fusion";
 import type { TrackedPerson } from "../tracking/MultiTracker.js";
 import { coverFit, thermalColor, rgba } from "./visuals.js";
+import { t } from "../i18n/i18n.js";
 
 /**
  * Full-screen 2D monitoring overlay. Paints a thermal-camera-style heat blob on
@@ -75,7 +76,7 @@ export class Overlay {
       // Stacked label: name (large) + meta lines.
       const title = p.name ?? p.id;
       const meta1 = `${p.classLabel.toUpperCase()} ${Math.round(p.confidence * 100)}%  ·  ${p.distanceM.toFixed(1)}m`;
-      const meta2 = `${p.posture}  ·  ${p.activityLabel}`;
+      const meta2 = `${t(`posture.${p.posture}`)}  ·  ${t(`activity.${p.activityLabel}`)}`;
       ctx.font = "700 14px ui-sans-serif, system-ui, sans-serif";
       const titleW = ctx.measureText(title).width;
       ctx.font = "500 11px ui-sans-serif, system-ui, sans-serif";

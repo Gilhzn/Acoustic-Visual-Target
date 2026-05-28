@@ -38,7 +38,10 @@ export class ArScene {
     key.position.set(1, 2, 1);
     this.scene.add(key);
 
-    this.target = this.createProceduralCharacter();
+    // No default 3D AR marker — the on-screen thermal overlay and minimap
+    // already pinpoint the target. A glTF marker can be loaded via
+    // loadCharacterGltf() when wanted.
+    this.target = new THREE.Group();
     this.target.visible = false;
     this.camera.add(this.target); // view-space placement
 
@@ -50,33 +53,7 @@ export class ArScene {
     return window.innerWidth / Math.max(window.innerHeight, 1);
   }
 
-  /** Stylized, glowing humanoid built procedurally (a real mesh, not a placeholder). */
-  private createProceduralCharacter(): THREE.Group {
-    const g = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0x1de9b6,
-      emissive: 0x0a5a4a,
-      metalness: 0.3,
-      roughness: 0.4,
-      transparent: true,
-      opacity: 0.92,
-    });
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.7, 6, 16), mat);
-    body.position.y = 0.1;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 16), mat);
-    head.position.y = 0.7;
-    const halo = new THREE.Mesh(
-      new THREE.TorusGeometry(0.28, 0.02, 12, 40),
-      new THREE.MeshBasicMaterial({ color: 0x1de9b6, transparent: true, opacity: 0.6 }),
-    );
-    halo.position.y = 0.95;
-    halo.rotation.x = Math.PI / 2;
-    g.add(body, head, halo);
-    g.scale.setScalar(1);
-    return g;
-  }
-
-  /** Replace the procedural character with a loaded glTF asset. */
+  /** Replace the (empty by default) marker group with a loaded glTF asset. */
   async loadCharacterGltf(url: string): Promise<void> {
     const gltf = await new GLTFLoader().loadAsync(url);
     this.target.clear();

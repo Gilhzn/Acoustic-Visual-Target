@@ -104,10 +104,20 @@ export class AnalysisView {
       const ago = Math.max(0, Math.round(Date.now() / 1000 - rec.lastSeen));
       const bpm = summary.breathingBpm > 0
         ? `${Math.round(summary.breathingBpm)} ${t("ui.life_unit")}`
-        : t("analysis.no_breathing");
+        : t("analysis.breathing_none");
+      const pattern = summary.breathingPattern === "none"
+        ? t("analysis.breathing_none")
+        : t(`analysis.breathing_${summary.breathingPattern}`);
       card.appendChild(this.section("analysis.section_history", [
         [t("analysis.metric_avg_activity"), summary.meanActivity.toFixed(2)],
+        [t("analysis.metric_activity_peaks"), String(summary.activityPeaks)],
         [t("analysis.metric_breathing"), bpm],
+        [t("analysis.metric_breathing_pattern"), pattern],
+        [t("analysis.metric_posture_changes"), String(summary.postureChanges)],
+        [t("analysis.metric_centered_pct"), `${Math.round(summary.centeredFraction * 100)}%`],
+        [t("analysis.metric_mean_distance"), `${summary.meanDistance.toFixed(1)} m`],
+        [t("analysis.metric_min_distance"), `${summary.minDistance.toFixed(1)} m`],
+        [t("analysis.metric_time_present"), `${summary.timePresentSec.toFixed(0)} s`],
         [t("analysis.metric_samples"), String(samples.length)],
         [t("analysis.metric_last_seen"), `${ago} ${t("analysis.metric_seconds")}`],
       ]));

@@ -19,8 +19,12 @@ import { ArScene } from "./render/ArScene.js";
 import { Overlay } from "./render/Overlay.js";
 import { Waterfall } from "./render/Waterfall.js";
 import { RenderAdapter } from "./render/RenderAdapter.js";
+import { Minimap } from "./render/Minimap.js";
 import { Hud, type HudView, type TrackingState } from "./render/Hud.js";
+import { coverFit } from "./render/visuals.js";
 import { GyroSource } from "./sensors/GyroSource.js";
+import { MultiTracker, type TrackedPerson } from "./tracking/MultiTracker.js";
+import { PersonRegistry } from "./tracking/PersonRegistry.js";
 import { createDefaultCouncil } from "./agents/index.js";
 
 const CHIRP: ChirpSpec = {
@@ -61,12 +65,6 @@ function detectionToVisual(d: Detection, K: CameraIntrinsics, tSec: number): Vis
     tSec: seconds(tSec),
     valid: true,
   };
-}
-
-function bestDetection(dets: Detection[]): Detection | null {
-  let best: Detection | null = null;
-  for (const d of dets) if (!best || d.score > best.score) best = d;
-  return best;
 }
 
 interface HudExtras {
@@ -159,9 +157,17 @@ async function run(hud: Hud): Promise<void> {
   const scene = new ArScene(arCanvas);
   const overlay = new Overlay(overlayCanvas);
   const waterfall = new Waterfall(waterfallCanvas);
-  const render = new RenderAdapter(scene, overlay, waterfall);
+  const minimapCanvas = document.getElementById("minimap") as HTMLCanvasElement;
+  const minimap = new Minimap(minimapCanvas, MAX_RANGE_M);
+  const render = new RenderAdapter(scene, overlay, waterfall, minimap);
   render.setCameraSize(camera.width, camera.height);
   window.addEventListener("resize", () => overlay.resize());
+
+  // --- Multi-person tracker + persistent name/history registry ---
+  const tracker = new MultiTracker({ K, maxRangeM: MAX_RANGE_M });
+  const registry = new PersonRegistry();
+  const peopleList = document.getElementById("people-list") as HTMLElement;
+  let peopleListLast = 0;
 
   // WebXR passthrough if available; otherwise composite the camera video.
   let usingXR = false;
@@ -201,6 +207,8 @@ async function run(hud: Hud): Promise<void> {
   let camH = camera.height;
   let lastAlive = false;
   let lastBpm = 0;
+  let lastTracks: TrackedPerson[] = [];
+  let lastPrimaryId: string | null = null;
   let inferenceMs = 0;
   let fps = 60;
   let lastFrameTime = now();
@@ -254,13 +262,31 @@ async function run(hud: Hud): Promise<void> {
           const dets = await detector.detect(frame);
           inferenceMs = performance.now() - t1;
           lastDetCount = dets.length;
-          render.onDetections(dets);
-          const best = bestDetection(dets);
-          if (best) {
-            lastConfidence = best.score;
-            const vm = detectionToVisual(best, K, t);
+          lastTracks = tracker.update(dets, t);
+          const primary = tracker.primary();
+          lastPrimaryId = primary?.id ?? null;
+          render.onPersons(lastTracks, lastPrimaryId);
+          if (primary) {
+            lastConfidence = primary.confidence;
+            const vm = detectionToVisual(
+              { bbox: primary.bbox, score: primary.confidence, classLabel: primary.classLabel },
+              K,
+              t,
+            );
             if (!fusion.initialized) fusion.initFromVisual(vm);
             else fusion.onVisual(vm, t);
+            if (primary.name) {
+              registry.appendSample(primary.name, {
+                tSec: t,
+                x: primary.position.x,
+                z: primary.position.z,
+                distanceM: primary.distanceM,
+                azimuthDeg: primary.azimuthDeg,
+                posture: primary.posture,
+                activity: primary.activity,
+                breathingBpm: lastAlive ? lastBpm : undefined,
+              });
+            }
           } else if (fusion.initialized) {
             fusion.onVisual(null, t);
           }
@@ -272,6 +298,73 @@ async function run(hud: Hud): Promise<void> {
       await sleep(1000 / VISUAL_RATE_HZ);
     }
   })();
+
+  // --- Tap-to-name dialog ---
+  const dialog = document.getElementById("name-dialog") as HTMLElement;
+  const nameInput = document.getElementById("name-input") as HTMLInputElement;
+  const nameWho = document.getElementById("name-who") as HTMLElement;
+  let dialogTarget: TrackedPerson | null = null;
+  const openDialog = (t: TrackedPerson): void => {
+    dialogTarget = t;
+    nameWho.textContent = `${t.classLabel} · ${t.distanceM.toFixed(1)} m · ${t.posture}`;
+    nameInput.value = t.name ?? "";
+    dialog.classList.remove("hidden");
+    setTimeout(() => nameInput.focus(), 30);
+  };
+  const closeDialog = (): void => {
+    dialog.classList.add("hidden");
+    dialogTarget = null;
+  };
+  document.getElementById("name-cancel")?.addEventListener("click", closeDialog);
+  document.getElementById("name-save")?.addEventListener("click", () => {
+    if (!dialogTarget) return closeDialog();
+    const n = nameInput.value.trim();
+    if (n) {
+      tracker.setName(dialogTarget.id, n);
+      registry.ensure(n);
+      registry.save();
+    }
+    closeDialog();
+  });
+  document.getElementById("name-clear")?.addEventListener("click", () => {
+    if (dialogTarget) tracker.setName(dialogTarget.id, null);
+    closeDialog();
+  });
+  overlayCanvas.addEventListener("click", (ev) => {
+    const rect = overlayCanvas.getBoundingClientRect();
+    const xScreen = ev.clientX - rect.left;
+    const yScreen = ev.clientY - rect.top;
+    const fit = coverFit(camW, camH, window.innerWidth, window.innerHeight);
+    const u = (xScreen - fit.ox) / fit.s;
+    const v = (yScreen - fit.oy) / fit.s;
+    const hit = tracker.findAtPixel(u, v);
+    if (hit) openDialog(hit);
+  });
+
+  // Persist the registry periodically so identities + history survive reloads.
+  setInterval(() => registry.save(), 5000);
+  window.addEventListener("pagehide", () => registry.save());
+
+  /** Render the named-people side panel (throttled). */
+  const updatePeopleList = (): void => {
+    const t = now();
+    if (t - peopleListLast < 0.25) return;
+    peopleListLast = t;
+    peopleList.innerHTML = "";
+    for (const trk of lastTracks) {
+      const row = document.createElement("div");
+      row.className = "person-row" + (trk.id === lastPrimaryId ? " primary" : "");
+      const who = document.createElement("span");
+      who.className = "who";
+      who.textContent = trk.name ?? trk.id;
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = `${trk.distanceM.toFixed(1)}m · ${trk.posture}`;
+      row.appendChild(who);
+      row.appendChild(meta);
+      peopleList.appendChild(row);
+    }
+  };
 
   // --- Council loop ---
   const battery = await getBatteryFraction();
@@ -302,6 +395,7 @@ async function run(hud: Hud): Promise<void> {
     render.onTrack(ts);
     render.onSearchEllipse(fusion.initialized && !fusion.visuallyTracked ? fusion.searchEllipse() : null);
     render.tick();
+    updatePeopleList();
     hud.update(
       buildHudView(ts, fusion, {
         confidence: lastConfidence,

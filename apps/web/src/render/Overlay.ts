@@ -1,5 +1,6 @@
 import type { Detection } from "@avt/contracts";
 import type { SearchEllipse } from "@avt/fusion";
+import type { TrackedPerson } from "../tracking/MultiTracker.js";
 import { coverFit, thermalColor, rgba } from "./visuals.js";
 
 /**
@@ -29,6 +30,70 @@ export class Overlay {
 
   clear(): void {
     this.ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  }
+
+  /**
+   * Multi-person rendering: thermal blob, targeting box, and a stacked label
+   * with the name (or ID), class+confidence, posture and activity. Maps
+   * camera-frame pixels to screen with object-fit: cover.
+   */
+  drawPersons(persons: TrackedPerson[], srcW: number, srcH: number, tSec: number, primaryId?: string | null): void {
+    const { s, ox, oy } = coverFit(srcW, srcH, window.innerWidth, window.innerHeight);
+    const ctx = this.ctx;
+    const pulse = 0.5 + 0.5 * Math.sin(tSec * 4);
+
+    for (const p of persons) {
+      const [x0, y0, x1, y1] = p.bbox;
+      const x = ox + x0 * s;
+      const y = oy + y0 * s;
+      const w = (x1 - x0) * s;
+      const h = (y1 - y0) * s;
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const rad = Math.max(w, h) * 0.62;
+      const isPrimary = p.id === primaryId;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createRadialGradient(cx, cy, Math.min(w, h) * 0.05, cx, cy, rad);
+      g.addColorStop(0.0, rgba(thermalColor(0.0), 0.85));
+      g.addColorStop(0.25, rgba(thermalColor(0.28), 0.6));
+      g.addColorStop(0.55, rgba(thermalColor(0.55), 0.34));
+      g.addColorStop(0.8, rgba(thermalColor(0.8), 0.16));
+      g.addColorStop(1.0, rgba(thermalColor(1.0), 0.0));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rad, rad * 0.92, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.strokeStyle = isPrimary ? "#ffffff" : "rgba(255,255,255,0.7)";
+      ctx.lineWidth = isPrimary ? 2.5 : 2;
+      ctx.strokeRect(x, y, w, h);
+      this.corners(x, y, w, h, isPrimary ? 18 + 4 * pulse : 12);
+
+      // Stacked label: name (large) + meta lines.
+      const title = p.name ?? p.id;
+      const meta1 = `${p.classLabel.toUpperCase()} ${Math.round(p.confidence * 100)}%  ·  ${p.distanceM.toFixed(1)}m`;
+      const meta2 = `${p.posture}  ·  ${p.activityLabel}`;
+      ctx.font = "700 14px ui-sans-serif, system-ui, sans-serif";
+      const titleW = ctx.measureText(title).width;
+      ctx.font = "500 11px ui-sans-serif, system-ui, sans-serif";
+      const m1W = ctx.measureText(meta1).width;
+      const m2W = ctx.measureText(meta2).width;
+      const chipW = Math.max(titleW, m1W, m2W) + 14;
+      const chipH = 46;
+      const cyTop = y - chipH - 4 < 0 ? y + h + 4 : y - chipH - 4;
+      ctx.fillStyle = isPrimary ? "rgba(37,232,192,0.95)" : "rgba(255,150,60,0.95)";
+      this.roundRect(x, cyTop, chipW, chipH, 7);
+      ctx.fill();
+      ctx.fillStyle = "#04140f";
+      ctx.font = "700 14px ui-sans-serif, system-ui, sans-serif";
+      ctx.fillText(title, x + 7, cyTop + 16);
+      ctx.font = "500 11px ui-sans-serif, system-ui, sans-serif";
+      ctx.fillText(meta1, x + 7, cyTop + 30);
+      ctx.fillText(meta2, x + 7, cyTop + 42);
+    }
   }
 
   drawDetections(boxes: Detection[], srcW: number, srcH: number, tSec: number): void {

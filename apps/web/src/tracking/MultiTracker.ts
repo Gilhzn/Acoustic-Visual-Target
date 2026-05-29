@@ -20,6 +20,8 @@ export interface TrackedPerson {
   confidence: number;
   firstSeenSec: number;
   lastSeenSec: number;
+  /** User-calibrated real height (m) for this person. Overrides the class default. */
+  heightOverrideM?: number;
 }
 
 export interface MultiTrackerOpts {
@@ -29,6 +31,8 @@ export interface MultiTrackerOpts {
   maxRangeM?: number;
   /** Frames of history kept per track for activity estimation. */
   historyFrames?: number;
+  /** EWMA factor (0..1) for bbox smoothing. Higher = more responsive, less smooth. */
+  bboxAlpha?: number;
 }
 
 /** Standard intersection-over-union for two axis-aligned boxes. */
@@ -70,6 +74,8 @@ export function activityLabel(a: number): ActivityLabel {
   return "active";
 }
 
+const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
+
 interface InternalTrack {
   pub: TrackedPerson;
   history: { tSec: number; cx: number; cz: number }[];
@@ -87,6 +93,7 @@ export class MultiTracker {
   private readonly maxAgeSec: number;
   private readonly maxRangeM: number;
   private readonly historyFrames: number;
+  private readonly bboxAlpha: number;
   private tracks: InternalTrack[] = [];
   private nextId = 1;
 
@@ -96,6 +103,8 @@ export class MultiTracker {
     this.maxAgeSec = opts.maxAgeSec ?? 1.5;
     this.maxRangeM = opts.maxRangeM ?? 12;
     this.historyFrames = opts.historyFrames ?? 24;
+    // Light EWMA on the bbox: rejects per-frame jitter without lagging real motion.
+    this.bboxAlpha = clamp01(opts.bboxAlpha ?? 0.65);
   }
 
   update(detections: Detection[], tSec: number): TrackedPerson[] {
@@ -122,9 +131,11 @@ export class MultiTracker {
     return this.tracks.map((t) => t.pub);
   }
 
-  setName(id: string, name: string | null): void {
+  setName(id: string, name: string | null, heightM?: number): void {
     const t = this.tracks.find((t) => t.pub.id === id);
-    if (t) t.pub.name = name;
+    if (!t) return;
+    t.pub.name = name;
+    if (heightM !== undefined) t.pub.heightOverrideM = heightM > 0 ? heightM : undefined;
   }
 
   /** The "primary" target: highest-confidence (named tracks slightly preferred). */
@@ -153,12 +164,17 @@ export class MultiTracker {
     return KNOWN_OBJECT_HEIGHTS_M[label] ?? KNOWN_OBJECT_HEIGHTS_M.default;
   }
 
-  private project(bbox: [number, number, number, number], label: string) {
+  private project(
+    bbox: [number, number, number, number],
+    label: string,
+    heightOverrideM?: number,
+  ) {
     const [x0, y0, x1, y1] = bbox;
     const u = (x0 + x1) / 2;
     const v = (y0 + y1) / 2;
     const h = Math.max(1, y1 - y0);
-    const rawDepth = (this.knownHeight(label) * this.K.fy) / h;
+    const knownH = heightOverrideM && heightOverrideM > 0 ? heightOverrideM : this.knownHeight(label);
+    const rawDepth = (knownH * this.K.fy) / h;
     const z = Math.min(Math.max(rawDepth, 0.3), this.maxRangeM);
     const x = ((u - this.K.cx) * z) / this.K.fx;
     const y = ((v - this.K.cy) * z) / this.K.fy;
@@ -166,16 +182,19 @@ export class MultiTracker {
   }
 
   private createTrack(det: Detection, tSec: number): InternalTrack {
-    const { pos, u, v, distance, azimuthDeg } = this.project(det.bbox, det.classLabel);
+    // First detection — no prior smoothed state, so the smoothed bbox equals
+    // the raw bbox (no lag on track birth).
+    const bbox = [...det.bbox] as [number, number, number, number];
+    const { pos, u, v, distance, azimuthDeg } = this.project(bbox, det.classLabel);
     const pub: TrackedPerson = {
       id: `p${this.nextId++}`,
       name: null,
-      bbox: [...det.bbox] as [number, number, number, number],
+      bbox,
       centerPx: { u, v },
       position: pos,
       distanceM: distance,
       azimuthDeg,
-      posture: postureFromBbox(det.bbox),
+      posture: postureFromBbox(bbox),
       activity: 0,
       activityLabel: "unknown",
       classLabel: det.classLabel,
@@ -187,14 +206,23 @@ export class MultiTracker {
   }
 
   private updateTrack(trk: InternalTrack, det: Detection, tSec: number): void {
-    const { pos, u, v, distance, azimuthDeg } = this.project(det.bbox, det.classLabel);
     const p = trk.pub;
-    p.bbox = [...det.bbox] as [number, number, number, number];
+    // EWMA-smooth the bbox toward the new detection. Reduces per-frame jitter
+    // so the displayed distance / direction / overlay are visibly steadier.
+    const a = this.bboxAlpha;
+    const sb: [number, number, number, number] = [
+      a * det.bbox[0] + (1 - a) * p.bbox[0],
+      a * det.bbox[1] + (1 - a) * p.bbox[1],
+      a * det.bbox[2] + (1 - a) * p.bbox[2],
+      a * det.bbox[3] + (1 - a) * p.bbox[3],
+    ];
+    const { pos, u, v, distance, azimuthDeg } = this.project(sb, det.classLabel, p.heightOverrideM);
+    p.bbox = sb;
     p.centerPx = { u, v };
     p.position = pos;
     p.distanceM = distance;
     p.azimuthDeg = azimuthDeg;
-    p.posture = postureFromBbox(det.bbox);
+    p.posture = postureFromBbox(sb);
     p.confidence = det.score;
     p.classLabel = det.classLabel;
     p.lastSeenSec = tSec;

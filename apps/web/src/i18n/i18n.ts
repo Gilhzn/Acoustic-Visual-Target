@@ -64,6 +64,8 @@ const dicts: Record<Lang, Dict> = {
 
     "dialog.name_title": "Name this person",
     "dialog.name_placeholder": "e.g. Dad, Maya, the cat…",
+    "dialog.height_placeholder": "Height in cm (optional — improves distance accuracy)",
+    "dialog.height_hint": "If set, this person's real height is used to compute their distance instead of the generic ~170 cm.",
     "dialog.name_save": "Save",
     "dialog.name_cancel": "Cancel",
     "dialog.name_clear": "Clear",
@@ -172,6 +174,8 @@ const dicts: Record<Lang, Dict> = {
 
     "dialog.name_title": "תן שם לאדם",
     "dialog.name_placeholder": "למשל אבא, מאיה, החתול…",
+    "dialog.height_placeholder": "גובה בס\"מ (אופציונלי — משפר דיוק מרחק)",
+    "dialog.height_hint": "אם מוזן, ייעשה שימוש בגובה האמיתי של האדם לחישוב המרחק במקום בהנחה הגנרית של ~170 ס\"מ.",
     "dialog.name_save": "שמירה",
     "dialog.name_cancel": "ביטול",
     "dialog.name_clear": "מחיקה",

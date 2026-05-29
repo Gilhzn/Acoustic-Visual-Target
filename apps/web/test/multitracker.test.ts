@@ -101,6 +101,30 @@ describe("MultiTracker", () => {
     expect(hit!.bbox[0]).toBe(100);
   });
 
+  it("bbox EWMA-smoothing lags the raw detection toward it without overshooting", () => {
+    const t = new MultiTracker({ K, bboxAlpha: 0.5 });
+    const a = t.update([det(100, 100, 200, 400)], 0);
+    expect(a[0].bbox).toEqual([100, 100, 200, 400]); // first frame = raw
+    const b = t.update([det(140, 100, 240, 400)], 0.1); // raw shifted right by 40 px
+    // Smoothed value is between previous (100) and new raw (140).
+    expect(b[0].bbox[0]).toBeGreaterThan(100);
+    expect(b[0].bbox[0]).toBeLessThan(140);
+    expect(b[0].bbox[0]).toBeCloseTo(120, 5); // alpha=0.5 → midpoint
+  });
+
+  it("setName with a heightM tightens the distance estimate to that height", () => {
+    const t = new MultiTracker({ K });
+    // Bbox 200 px tall → defaults to person height 1.7 m → depth = 1.7*1000/200 = 8.5 m.
+    const first = t.update([det(640 - 50, 360 - 100, 640 + 50, 360 + 100)], 0);
+    const dDefault = first[0].distanceM;
+    t.setName(first[0].id, "Maya", 1.5); // shorter than 1.7 → closer
+    const second = t.update([det(640 - 50, 360 - 100, 640 + 50, 360 + 100)], 0.1);
+    expect(second[0].heightOverrideM).toBe(1.5);
+    expect(second[0].distanceM).toBeLessThan(dDefault);
+    // Sanity: with raw smoothed bbox unchanged and 1.5 m height → ~7.5 m.
+    expect(second[0].distanceM).toBeCloseTo(7.5, 1);
+  });
+
   it("primary() prefers the highest-confidence (named slightly boosted)", () => {
     const t = new MultiTracker({ K });
     const out = t.update([det(100, 100, 200, 400, 0.6), det(500, 100, 600, 400, 0.9)], 0);

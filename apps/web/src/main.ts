@@ -306,11 +306,15 @@ async function run(hud: Hud): Promise<void> {
   const dialog = document.getElementById("name-dialog") as HTMLElement;
   const nameInput = document.getElementById("name-input") as HTMLInputElement;
   const nameWho = document.getElementById("name-who") as HTMLElement;
+  const heightInput = document.getElementById("height-input") as HTMLInputElement;
   let dialogTarget: TrackedPerson | null = null;
-  const openDialog = (t: TrackedPerson): void => {
-    dialogTarget = t;
-    nameWho.textContent = `${t.classLabel} · ${t.distanceM.toFixed(1)} m · ${t.posture}`;
-    nameInput.value = t.name ?? "";
+  const openDialog = (trk: TrackedPerson): void => {
+    dialogTarget = trk;
+    nameWho.textContent = `${trk.classLabel} · ${trk.distanceM.toFixed(1)} m · ${trk.posture}`;
+    nameInput.value = trk.name ?? "";
+    // Pre-fill height from a saved record if the track already has a name.
+    const knownH = trk.heightOverrideM ?? (trk.name ? registry.get(trk.name)?.heightM : undefined);
+    heightInput.value = knownH ? String(Math.round(knownH * 100)) : "";
     dialog.classList.remove("hidden");
     setTimeout(() => nameInput.focus(), 30);
   };
@@ -322,9 +326,15 @@ async function run(hud: Hud): Promise<void> {
   document.getElementById("name-save")?.addEventListener("click", () => {
     if (!dialogTarget) return closeDialog();
     const n = nameInput.value.trim();
+    const cm = parseFloat(heightInput.value);
+    let heightM: number | undefined;
+    if (Number.isFinite(cm) && cm >= 40 && cm <= 230) heightM = cm / 100;
     if (n) {
-      tracker.setName(dialogTarget.id, n);
-      registry.ensure(n);
+      // Inherit a previously-saved height for this name if the user didn't enter one.
+      if (heightM === undefined) heightM = registry.get(n)?.heightM;
+      tracker.setName(dialogTarget.id, n, heightM);
+      const rec = registry.ensure(n);
+      if (heightM !== undefined) rec.heightM = heightM;
       registry.save();
     }
     closeDialog();

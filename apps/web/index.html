@@ -141,7 +141,9 @@
       #name-dialog h3 { font-size: 14px; color: var(--text); margin-bottom: 4px; }
       #name-dialog .who { font-size: 12px; color: var(--text-2); margin-bottom: 14px; }
       #name-dialog input { width: 100%; padding: 11px 12px; font: inherit; font-size: 15px; color: var(--text); background: rgba(255,255,255,0.06); border: 1px solid var(--hair); border-radius: var(--r-sm); outline: none; }
+      #name-dialog input + input { margin-top: 9px; }
       #name-dialog input:focus { border-color: var(--accent); }
+      #name-dialog .hint { font-size: 11px; color: var(--text-3); margin-top: 5px; }
       #name-dialog .buttons { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
       #name-dialog button { padding: 9px 14px; font: inherit; font-size: 13px; font-weight: 600; border-radius: var(--r-sm); border: 1px solid var(--hair); cursor: pointer; background: rgba(255,255,255,0.05); color: var(--text); }
       #name-dialog button.primary { background: linear-gradient(180deg, var(--accent), var(--accent-2)); color: #04140f; border: none; }
@@ -358,6 +360,8 @@
           <h3 data-i18n="dialog.name_title">Name this person</h3>
           <div class="who" id="name-who">—</div>
           <input id="name-input" type="text" autocomplete="off" data-i18n-placeholder="dialog.name_placeholder" placeholder="e.g. Dad, Maya, the cat…" />
+          <input id="height-input" type="number" inputmode="numeric" min="40" max="230" step="1" data-i18n-placeholder="dialog.height_placeholder" placeholder="Height in cm (optional — improves distance accuracy)" />
+          <div class="hint" data-i18n="dialog.height_hint">Calibrates this person's distance.</div>
           <div class="buttons">
             <button id="name-clear" type="button" data-i18n="dialog.name_clear">Clear</button>
             <button id="name-cancel" type="button" data-i18n="dialog.name_cancel">Cancel</button>

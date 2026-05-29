@@ -22,6 +22,8 @@ export interface PersonRecord {
   name: string;
   firstSeen: number;
   lastSeen: number;
+  /** Optional user-calibrated real height (m). Improves monocular depth accuracy. */
+  heightM?: number;
   samples: PersonHistorySample[];
 }
 

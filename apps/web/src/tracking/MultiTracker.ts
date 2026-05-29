@@ -1,4 +1,5 @@
 import { KNOWN_OBJECT_HEIGHTS_M, type CameraIntrinsics, type Detection, type Vec3 } from "@avt/contracts";
+import { postureFromKeypoints, type Keypoint } from "./poseClassifier.js";
 
 export type Posture = "standing" | "sitting" | "lying" | "unknown";
 export type ActivityLabel = "still" | "moving" | "active" | "unknown";
@@ -22,6 +23,10 @@ export interface TrackedPerson {
   lastSeenSec: number;
   /** User-calibrated real height (m) for this person. Overrides the class default. */
   heightOverrideM?: number;
+  /** Latest MoveNet keypoints for this track, if pose estimation is enabled. */
+  keypoints?: Keypoint[];
+  /** True when posture is computed from pose keypoints (more accurate than bbox aspect). */
+  postureFromPose?: boolean;
 }
 
 export interface MultiTrackerOpts {
@@ -189,6 +194,43 @@ export class MultiTracker {
     trk.lastUpdateSec = tSec;
   }
 
+  /**
+   * Enrich person tracks with MoveNet poses: greedy-match each pose's bbox to
+   * the most-overlapping person track and override its posture with a
+   * keypoint-derived classification (more accurate than bbox aspect ratio).
+   * Tracks without a matching pose keep their bbox-based posture.
+   */
+  applyPoses(poses: ReadonlyArray<{ bbox: [number, number, number, number]; keypoints: Keypoint[] }>): void {
+    const personTracks: number[] = [];
+    for (let ti = 0; ti < this.tracks.length; ti++) {
+      if (this.tracks[ti].pub.classLabel === "person") personTracks.push(ti);
+    }
+    if (personTracks.length === 0 || poses.length === 0) return;
+
+    const pairs: { pi: number; ti: number; v: number }[] = [];
+    for (let pi = 0; pi < poses.length; pi++) {
+      for (const ti of personTracks) {
+        const v = iou(poses[pi].bbox, this.tracks[ti].pub.bbox);
+        if (v >= 0.2) pairs.push({ pi, ti, v });
+      }
+    }
+    pairs.sort((a, b) => b.v - a.v);
+    const usedPose = new Set<number>();
+    const usedTrk = new Set<number>();
+    for (const p of pairs) {
+      if (usedPose.has(p.pi) || usedTrk.has(p.ti)) continue;
+      usedPose.add(p.pi);
+      usedTrk.add(p.ti);
+      const trk = this.tracks[p.ti];
+      trk.pub.keypoints = poses[p.pi].keypoints;
+      const posture = postureFromKeypoints(poses[p.pi].keypoints);
+      if (posture !== "unknown") {
+        trk.pub.posture = posture;
+        trk.pub.postureFromPose = true;
+      }
+    }
+  }
+
   setName(id: string, name: string | null, heightM?: number): void {
     const t = this.tracks.find((t) => t.pub.id === id);
     if (!t) return;
@@ -303,6 +345,7 @@ export class MultiTracker {
     p.distanceM = distance;
     p.azimuthDeg = azimuthDeg;
     p.posture = postureFromBbox(sb);
+    p.postureFromPose = false; // applyPoses() may upgrade this later this frame
     p.confidence = det.score;
     p.classLabel = det.classLabel;
     p.lastSeenSec = tSec;

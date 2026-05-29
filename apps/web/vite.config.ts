@@ -36,7 +36,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          tfjs: ["@tensorflow/tfjs", "@tensorflow-models/coco-ssd"],
+          tfjs: [
+            "@tensorflow/tfjs",
+            "@tensorflow-models/coco-ssd",
+            "@tensorflow-models/pose-detection",
+          ],
           three: ["three"],
         },
       },

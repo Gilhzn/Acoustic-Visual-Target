@@ -148,6 +148,31 @@ describe("MultiTracker", () => {
     expect(out[0].id).toBe(a[0].id);
   });
 
+  it("applyPoses upgrades posture from keypoints for matched person tracks", () => {
+    const t = new MultiTracker({ K });
+    const a = t.update([det(100, 100, 200, 400)], 0);
+    expect(a[0].posture).toBe("standing"); // bbox-aspect default
+    expect(a[0].postureFromPose).toBeFalsy();
+    t.applyPoses([
+      {
+        bbox: [100, 100, 200, 400],
+        keypoints: [
+          { name: "left_shoulder", x: 150, y: 150, score: 0.9 },
+          { name: "right_shoulder", x: 150, y: 150, score: 0.9 },
+          { name: "left_hip", x: 150, y: 250, score: 0.9 },
+          { name: "right_hip", x: 150, y: 250, score: 0.9 },
+          { name: "left_knee", x: 170, y: 260, score: 0.9 }, // collapsed thigh
+          { name: "right_knee", x: 170, y: 260, score: 0.9 },
+          { name: "left_ankle", x: 170, y: 360, score: 0.9 },
+          { name: "right_ankle", x: 170, y: 360, score: 0.9 },
+        ],
+      },
+    ]);
+    expect(a[0].posture).toBe("sitting");
+    expect(a[0].postureFromPose).toBe(true);
+    expect(a[0].keypoints).toBeDefined();
+  });
+
   it("primary() prefers the highest-confidence (named slightly boosted)", () => {
     const t = new MultiTracker({ K });
     const out = t.update([det(100, 100, 200, 400, 0.6), det(500, 100, 600, 400, 0.9)], 0);

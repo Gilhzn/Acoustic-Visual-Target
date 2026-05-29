@@ -13,6 +13,7 @@ import { FusionCore, depthFromSize } from "@avt/fusion";
 import { AcousticTracker } from "./audio/AcousticTracker.js";
 import { GumCameraSource } from "./vision/GumCameraSource.js";
 import { TfjsDetector } from "./vision/TfjsDetector.js";
+import { PoseDetector } from "./vision/PoseDetector.js";
 import { detectCapabilities, selectPipeline } from "./vision/capability.js";
 import { isImmersiveArSupported, requestArSession, sessionHasCameraAccess } from "./vision/webxr.js";
 import { ArScene } from "./render/ArScene.js";
@@ -155,6 +156,16 @@ async function run(hud: Hud): Promise<void> {
   const detector = new TfjsDetector({ backend: "webgl", minScore: 0.4 });
   hud.setStatusText("Loading detector…");
   await detector.warmup();
+  // MoveNet adds joint-level posture; failure to load is non-fatal (we fall
+  // back to bbox-aspect posture).
+  const poseDetector = new PoseDetector();
+  let poseEnabled = false;
+  try {
+    await poseDetector.warmup();
+    poseEnabled = true;
+  } catch (e) {
+    console.warn("pose detector unavailable, falling back to bbox posture", e);
+  }
 
   // --- Scene ---
   const scene = new ArScene(arCanvas);
@@ -270,6 +281,15 @@ async function run(hud: Hud): Promise<void> {
           inferenceMs = performance.now() - t1;
           lastDetCount = dets.length;
           lastTracks = tracker.update(dets, t);
+          if (poseEnabled) {
+            try {
+              const poses = await poseDetector.detect(frame);
+              tracker.applyPoses(poses);
+            } catch (e) {
+              // Don't kill detection if a single pose call hiccups.
+              console.warn("pose step failed:", e);
+            }
+          }
           const primary = tracker.primary();
           lastPrimaryId = primary?.id ?? null;
           render.onPersons(lastTracks, lastPrimaryId);

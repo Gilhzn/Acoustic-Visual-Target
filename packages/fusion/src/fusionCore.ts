@@ -90,7 +90,7 @@ export class FusionCore {
     return Math.atan2(p.x, p.z);
   }
 
-  onAcoustic(m: AcousticMeasurement, azScale = 1): UpdateResult | null {
+  onAcoustic(m: AcousticMeasurement, azScale = 1, rangeScale = 1): UpdateResult | null {
     if (!this.ekf || !m.valid) return null;
     this.ekf.predictTo(m.tSec as number);
     // Sonar can't see past its max range — reject implausible echoes.
@@ -99,7 +99,7 @@ export class FusionCore {
       return null;
     }
     const theta = this.pickAlias(m.aliases, this.predictedAzimuth());
-    const res = this.ekf.updateAcoustic(m.rangeM as number, theta, azScale);
+    const res = this.ekf.updateAcoustic(m.rangeM as number, theta, azScale, rangeScale);
     if (res.accepted) this.lastNisVal = res.nis;
     this.clamp();
     return res;

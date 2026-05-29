@@ -150,9 +150,12 @@ export class Ekf {
     this.tSec = t;
   }
 
-  /** Acoustic correction with z = [R, θ]. `azScale` ≥ 1 trusts azimuth less. */
-  updateAcoustic(rangeM: number, azimuthRad: number, azScale = 1): UpdateResult {
-    buildRAcoustic(this.opt.sigmaRangeM, this.opt.sigmaAzimuthRad, azScale, this.Rm);
+  /**
+   * Acoustic correction with z = [R, θ]. `azScale` ≥ 1 trusts azimuth less,
+   * `rangeScale` ≥ 1 trusts range less (and < 1 trusts it more — set from SNR).
+   */
+  updateAcoustic(rangeM: number, azimuthRad: number, azScale = 1, rangeScale = 1): UpdateResult {
+    buildRAcoustic(this.opt.sigmaRangeM, this.opt.sigmaAzimuthRad, azScale, this.Rm, rangeScale);
     return this.correct(
       2,
       (out) => hAcoustic(this.x, out),

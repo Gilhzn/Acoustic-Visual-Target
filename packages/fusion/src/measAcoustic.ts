@@ -32,15 +32,17 @@ export function jacobianAcoustic(x: State6, out: Mat): Mat {
   return out;
 }
 
-/** Diagonal acoustic measurement covariance R = diag(σ_R², (σ_θ·azScale)²). */
+/** Diagonal acoustic measurement covariance R = diag((σ_R·rScale)², (σ_θ·azScale)²). */
 export function buildRAcoustic(
   sigmaR: number,
   sigmaTheta: number,
   azScale: number,
   out: Mat,
+  rangeScale = 1,
 ): Mat {
   out.fill(0);
-  out[0] = sigmaR * sigmaR;
+  const sr = sigmaR * rangeScale;
+  out[0] = sr * sr;
   out[3] = (sigmaTheta * azScale) * (sigmaTheta * azScale);
   return out;
 }

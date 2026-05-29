@@ -125,6 +125,29 @@ describe("MultiTracker", () => {
     expect(second[0].distanceM).toBeCloseTo(7.5, 1);
   });
 
+  it("coasts an unmatched track by its velocity for one frame instead of freezing", () => {
+    const t = new MultiTracker({ K, bboxAlpha: 1 }); // no smoothing → easy to inspect
+    t.update([det(100, 100, 200, 400)], 0);
+    const after = t.update([det(140, 100, 240, 400)], 1);
+    const beforeCoastX0 = after[0].bbox[0]; // capture value (pub is shared by reference!)
+    const beforeSeen = after[0].lastSeenSec;
+    const coast = t.update([], 1.5);
+    expect(coast.length).toBe(1);
+    expect(coast[0].bbox[0]).toBeGreaterThan(beforeCoastX0);
+    expect(coast[0].lastSeenSec).toBe(beforeSeen); // last seen unchanged on coast
+  });
+
+  it("predicts the next bbox using velocity, so a moving target still matches its own track", () => {
+    const t = new MultiTracker({ K, bboxAlpha: 1 });
+    const a = t.update([det(100, 100, 200, 400)], 0);
+    t.update([det(160, 100, 260, 400)], 1); // +60 px/s velocity is learned
+    // A detection that has moved further still matches the SAME track thanks
+    // to the predicted bbox at the new time.
+    const out = t.update([det(220, 100, 320, 400)], 2);
+    expect(out.length).toBe(1);
+    expect(out[0].id).toBe(a[0].id);
+  });
+
   it("primary() prefers the highest-confidence (named slightly boosted)", () => {
     const t = new MultiTracker({ K });
     const out = t.update([det(100, 100, 200, 400, 0.6), det(500, 100, 600, 400, 0.9)], 0);

@@ -222,7 +222,11 @@ async function run(hud: Hud): Promise<void> {
     engine: { profileBins: 96, pipeline: { micBaselineM: 0.1, breathing: true } },
     onMeasurement: (m: AcousticMeasurement) => {
       const stamped: AcousticMeasurement = { ...m, tSec: seconds(now()) };
-      fusion.onAcoustic(stamped, council.state.fusion.rAcousticAzScale);
+      // Trust sonar range more when its SNR is high (5.7 cm physical resolution
+      // beats monocular depth there); inflate when the echo is weak.
+      const snr = m.snrDb as number;
+      const rangeScale = snr >= 18 ? 0.6 : snr >= 12 ? 1.0 : snr >= 6 ? 1.8 : 4.0;
+      fusion.onAcoustic(stamped, council.state.fusion.rAcousticAzScale, rangeScale);
       lastAlive = m.alive ?? false;
       lastBpm = m.breathingRateBpm ?? 0;
     },
